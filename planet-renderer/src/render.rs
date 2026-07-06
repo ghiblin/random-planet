@@ -10,6 +10,9 @@ use crate::uniforms::pack_view_projection_uniform;
 const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 
 pub struct Renderer {
+    // Kept alive for the lifetime of the renderer: on the WebGPU backend, dropping the
+    // `Instance` invalidates the JS-side GPU handles derived from it.
+    _instance: wgpu::Instance,
     surface: wgpu::Surface<'static>,
     device: wgpu::Device,
     queue: wgpu::Queue,
@@ -165,6 +168,7 @@ impl Renderer {
         let depth_view = create_depth_view(&device, &config);
 
         Ok(Self {
+            _instance: instance,
             surface,
             device,
             queue,

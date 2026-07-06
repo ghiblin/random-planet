@@ -51,11 +51,19 @@ impl ApplicationHandler for App {
             }
         };
         self.window = Some(window.clone());
+        window.request_redraw();
 
         let renderer_slot = self.renderer.clone();
+        let size_probe = window.clone();
         wasm_bindgen_futures::spawn_local(async move {
             match Renderer::new(window).await {
-                Ok(renderer) => *renderer_slot.borrow_mut() = Some(renderer),
+                Ok(mut renderer) => {
+                    // The canvas may have been resized by the browser (e.g. once its
+                    // ResizeObserver reports the real layout size) while the adapter/device
+                    // were still negotiating; resync against the window's current size.
+                    renderer.resize(size_probe.inner_size());
+                    *renderer_slot.borrow_mut() = Some(renderer);
+                }
                 Err(error) => {
                     web_sys::console::error_1(
                         &format!("failed to create renderer: {error}").into(),
