@@ -26,10 +26,14 @@ Schema:
 {
   "feature": "<slug>",
   "spec_file": "docs/specs/<NNN>-<slug>.md",
+  "branch": "<actual git branch name backing this feature's worktree>",
+  "worktree_path": "<actual worktree path, relative to repo-root>",
   "stage": "drafting-spec | ready-for-review | changes-requested | approved | implementing | complete | pr-changes-requested | validated",
   "updated_at": "<date>"
 }
 ```
+
+`branch` and `worktree_path` record whatever a worktree-creation tool **actually** produced — never assume `feat/<slug>` / `.claude/worktrees/<slug>` literally. A native worktree tool, if available, may choose its own naming (e.g. sanitizing slashes, prefixing branch names); recording the real values keeps `planet-pr-merge` correct regardless of which mechanism created the worktree.
 
 - If the file doesn't exist, this is the first skill run for this worktree — create it.
 - If it exists for a **different** `feature` and `stage` is not `complete`: stop and tell the user another feature is mid-flight (name it and its stage). Ask whether to resume that feature instead, or confirm overwriting the state to start this one.
@@ -41,10 +45,8 @@ Schema:
 
 Before touching any file:
 - Choose a descriptive slug for the feature/phase (e.g. `cube-render`, `domain-data-model`, `icosahedron-subdivision`) — check `docs/roadmap.md` for the next phase's name if this is a roadmap phase rather than an ad-hoc feature
-- Invoke `superpowers:using-git-worktrees` (use the Skill tool directly) with these declared preferences:
-  - Worktree directory: `.claude/worktrees/<slug>`
-  - Branch: `feat/<slug>`
-- Write `<repo-root>/.claude/fractal-planet-workflow-state.json` per "Workflow state file" above, with `stage: "drafting-spec"`.
+- Invoke `superpowers:using-git-worktrees` (use the Skill tool directly), declaring a preferred worktree directory `.claude/worktrees/<slug>` and branch `feat/<slug>` — but a native worktree tool the skill defers to may choose different actual naming (e.g. sanitizing slashes). After creation, note the **actual** branch name and worktree path produced, whatever they are
+- Write `<repo-root>/.claude/fractal-planet-workflow-state.json` per "Workflow state file" above, with `stage: "drafting-spec"`, and `branch`/`worktree_path` set to the actual values from the previous step (not the declared preference, if they differ)
 
 All work — spec, implementation, tests — happens in this worktree.
 
