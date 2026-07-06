@@ -14,6 +14,10 @@ harness = false
 name = "buffers"
 harness = false
 
+[[test]]
+name = "uniforms"
+harness = false
+
 [dependencies]
 wasm-bindgen = "0.2.126"
 web-sys = "0.3.103"
