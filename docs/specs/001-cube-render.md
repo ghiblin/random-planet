@@ -9,7 +9,7 @@
 - Wire up Trunk to build `planet-renderer` to `wasm32-unknown-unknown` and serve it via `index.html`
 - Render a single static cube in the browser via wgpu
 - Camera orbits the cube on mouse drag and zooms on scroll, per the UI controls agreed in `docs/specs/000-architecture.md`
-- Establish the crate split from `rules.md`: pure/testable logic (`camera.rs`, `buffers.rs`) separate from thin GPU/browser glue (`render.rs`, `app.rs`, the wasm-bindgen entry point)
+- Establish the crate split from `rules.md`: pure/testable logic (`camera.rs`, `buffers.rs`, `uniforms.rs`) separate from thin GPU/browser glue (`render.rs`, `app.rs`, the wasm-bindgen entry point)
 
 Out of scope for this phase (later roadmap phases): any generated `Mesh` from `planet-core`, presets, color gradients, subdivision-depth UI, preset dropdown.
 
@@ -25,6 +25,8 @@ All new — this is the first code in the project.
 - Cube fixture + buffer packing (`buffers.rs`) — a fixed 24-vertex/36-index cube (4 vertices per face for flat per-face normals), and:
   - `pack_vertex_buffer(vertices: &[Vertex]) -> Vec<u8>`
   - `pack_index_buffer(indices: &[u16]) -> Vec<u8>`
+- Uniform buffer packing (`uniforms.rs`):
+  - `pack_view_projection_uniform(matrix: &[[f32; 4]; 4]) -> Vec<u8>` — serializes the view-projection matrix into the byte layout the WGSL uniform expects (column-major, 64 bytes)
 
 **`planet-renderer` (new, thin, not BDD-tested):**
 - `render.rs` — wgpu instance/device/pipeline setup, draw call
@@ -39,6 +41,7 @@ All new — this is the first code in the project.
 - `Camera::orbit` and `Camera::zoom` never panic and never produce `NaN`/`infinite` fields for finite input deltas, regardless of magnitude (large deltas saturate at the clamp bounds rather than overflowing)
 - `Camera::view_projection_matrix` never contains `NaN` for any valid (already-clamped) camera state and a positive, finite `aspect_ratio`
 - `pack_vertex_buffer`/`pack_index_buffer` output length is always exactly `input.len() * size_of::<T>()`, for any input slice length including zero
+- `pack_view_projection_uniform` output is always exactly 64 bytes (16 `f32`s) for any finite matrix input
 
 ## BDD scenarios
 
@@ -68,6 +71,11 @@ Feature: Camera orbit and zoom
     Given a Camera constructed at the minimum distance
     When the camera is zoomed in by a scroll delta of 100.0
     Then the camera's distance stays at the minimum distance
+
+  Scenario: Zooming out past the maximum distance clamps
+    Given a Camera constructed at the maximum distance
+    When the camera is zoomed out by a scroll delta of 100.0
+    Then the camera's distance stays at the maximum distance
 ```
 
 `planet-renderer/tests/features/buffers.feature`:
@@ -91,9 +99,20 @@ Feature: Vertex and index buffer packing
     Then the buffer is empty
 ```
 
+`planet-renderer/tests/features/uniforms.feature`:
+
+```gherkin
+Feature: Uniform buffer packing
+
+  Scenario: Packing a view-projection matrix produces a correctly sized uniform buffer
+    Given a view-projection matrix computed from a Camera
+    When the matrix is packed into a uniform buffer
+    Then the buffer's byte length equals 64 bytes
+```
+
 ## Acceptance criteria
 
-1. `cargo test --workspace` passes, including all scenarios in `camera.feature` and `buffers.feature` via real `cucumber` step definitions (no stub steps)
+1. `cargo test --workspace` passes, including all scenarios in `camera.feature`, `buffers.feature`, and `uniforms.feature` via real `cucumber` step definitions (no stub steps)
 2. `cargo fmt --check` and `cargo clippy --workspace --all-targets -- -D warnings` pass
 3. `cargo build --target wasm32-unknown-unknown -p planet-renderer` succeeds
 4. `trunk build` succeeds and produces a loadable `index.html` + WASM artifact
