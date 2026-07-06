@@ -18,7 +18,8 @@
 | `wgpu` | default | `planet-renderer` |
 | `winit` | default | `planet-renderer` |
 | `wasm-bindgen` | default | `planet-renderer` |
-| `web-sys` | grows per DOM API touched (e.g. `HtmlCanvasElement`, `HtmlSelectElement`, `HtmlInputElement`) | `planet-renderer` |
+| `wasm-bindgen-futures` | default | `planet-renderer` (drives the async adapter/device setup on the wasm event loop) |
+| `web-sys` | grows per DOM API touched (currently `console`) | `planet-renderer` |
 | `rand` | default | `planet-core` |
 | `rand_pcg` | default | `planet-core` (seeded RNG — required for deterministic generation) |
 | `cucumber` | default | `planet-core`, `planet-renderer` (dev) |
