@@ -24,3 +24,7 @@
 - `planet-core` (domain logic) → `planet-renderer` (GPU/browser) → UI controls, in that order, per roadmap phase
 - Each phase is additive; a later phase does not require rewriting an earlier one's public interface
 - `planet-core`'s public API is the only thing `planet-renderer` depends on — no reverse dependency, ever
+
+## Worktree rule — one bootstrap exception
+
+Every feature/phase (`001-cube-render` onward) must be developed on a `feat/<slug>` branch in a dedicated worktree, never committed directly to `main` — enforced by `planet-spec`'s Phase 0 hard gate. The **one exception** is the initial governance/skills bootstrap commit itself (`constitution.md`, `tech-stack.md`, `rules.md`, `CLAUDE.md`, `docs/`, `.claude/skills/`): those files must exist on `main` before any worktree can be created from it, and before `planet-spec`'s own gate can run — there is no worktree-based way to commit the thing that defines the worktree workflow. This exception applies only to that one bootstrap commit and does not extend to any other work.
