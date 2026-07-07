@@ -1,7 +1,5 @@
 use cucumber::{World as _, given, then, when};
-use planet_renderer::buffers::{
-    Vertex, cube_indices, cube_vertices, pack_index_buffer, pack_vertex_buffer,
-};
+use planet_renderer::buffers::{Vertex, pack_index_buffer, pack_vertex_buffer};
 
 #[derive(Debug, Default, cucumber::World)]
 pub struct BuffersWorld {
@@ -11,14 +9,20 @@ pub struct BuffersWorld {
     index_buffer: Vec<u8>,
 }
 
-#[given("the cube's fixed vertex list")]
-fn cube_vertex_list(world: &mut BuffersWorld) {
-    world.vertices = cube_vertices();
+#[given(regex = r"^a vertex list with (\d+) vertices$")]
+fn vertex_list(world: &mut BuffersWorld, count: usize) {
+    world.vertices = vec![
+        Vertex {
+            position: [0.0, 0.0, 0.0],
+            normal: [0.0, 0.0, 1.0],
+        };
+        count
+    ];
 }
 
-#[given("the cube's fixed index list")]
-fn cube_index_list(world: &mut BuffersWorld) {
-    world.indices = cube_indices();
+#[given(regex = r"^an index list with (\d+) indices$")]
+fn index_list(world: &mut BuffersWorld, count: u16) {
+    world.indices = (0..count).collect();
 }
 
 #[given("an empty vertex list")]
