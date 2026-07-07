@@ -1,3 +1,4 @@
 /target
+/dist
 .claude/worktrees/
 .claude/fractal-planet-workflow-state.json

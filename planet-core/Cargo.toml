@@ -1,0 +1,12 @@
+[package]
+name = "planet-core"
+version = "0.1.0"
+edition.workspace = true
+
+[dependencies]
+rand = "0.10.2"
+rand_pcg = "0.10.2"
+
+[dev-dependencies]
+cucumber.workspace = true
+tokio.workspace = true

@@ -26,6 +26,8 @@ Schema:
 {
   "feature": "<slug>",
   "spec_file": "docs/specs/<NNN>-<slug>.md",
+  "branch": "feat/<slug> (enforced by planet-spec Phase 0)",
+  "worktree_path": "<actual worktree path, relative to repo-root>",
   "stage": "drafting-spec | ready-for-review | changes-requested | approved | implementing | complete | pr-changes-requested | validated",
   "updated_at": "<date>"
 }
@@ -36,9 +38,7 @@ Schema:
 - `stage` is anything other than `"validated"`: STOP. Tell the user the current stage and that `planet-pr-validate` must pass first (or `planet-tdd` first, if implementation itself isn't complete).
 - `stage == "validated"`: proceed.
 
-From the state file, `<feature>` is the `feature` slug. Derive (per `planet-spec` Phase 0 conventions):
-- Branch: `feat/<feature>`
-- Worktree path: `<repo-root>/.claude/worktrees/<feature>`
+From the state file, `<feature>` is the `feature` slug. `branch` is guaranteed to be `feat/<feature>` (enforced by `planet-spec` Phase 0). Read `worktree_path` **directly from the state file** rather than deriving `.claude/worktrees/<feature>` by convention, since a native worktree tool may have chosen different actual directory naming when `planet-spec` created the worktree.
 
 ## Steps
 
@@ -56,25 +56,20 @@ If any checks are **failing or still pending**: halt and list the check names. D
 gh pr merge --squash --delete-branch
 ```
 
-### 3. Remove the local worktree
+### 3. Remove the local worktree and branch
 
-Run from `<repo-root>` (not from inside the worktree):
+If the worktree was created with a native tool (e.g. `EnterWorktree`), use its matching removal tool (e.g. `ExitWorktree` with `action: "remove"`) targeting `worktree_path` from the state file — it handles both the worktree and its branch, and keeps the harness's own bookkeeping consistent. Prefer it over raw git commands, same as `planet-spec` Phase 0 preferred the native creation tool.
 
-```bash
-git worktree remove <worktree-path> --force
-```
-
-`--force` is required because after a squash merge the worktree's branch has no direct ancestry on `main`.
-
-### 4. Delete the local feature branch
+Otherwise (manual `git worktree add` was used), run from `<repo-root>` (not from inside the worktree):
 
 ```bash
-git branch -D feat/<feature>
+git worktree remove <worktree_path> --force
+git branch -D <branch>
 ```
 
-Use `-D` (force delete), not `-d` — after a squash merge, git's ancestry check does not consider the branch "fully merged".
+`--force` / `-D` are required because after a squash merge the worktree's branch has no direct ancestry on `main` — git's ancestry check does not consider it "fully merged".
 
-### 5. Sync main
+### 4. Sync main
 
 ```bash
 git checkout main
@@ -83,7 +78,7 @@ git pull
 
 Confirm the latest commit message matches the PR title.
 
-### 6. Reset the workflow state file
+### 5. Reset the workflow state file
 
 Delete `<repo-root>/.claude/fractal-planet-workflow-state.json`. Its absence is what `planet-spec`'s Phase 0 gate reads as "no feature in flight" — the next `planet-spec` run starts clean without needing to know anything about this feature.
 
@@ -91,13 +86,13 @@ Delete `<repo-root>/.claude/fractal-planet-workflow-state.json`. Its absence is 
 rm <repo-root>/.claude/fractal-planet-workflow-state.json
 ```
 
-### 7. Print confirmation
+### 6. Print confirmation
 
 ```
 Merged:    <PR title>
 Commit:    <latest commit SHA on main>
-Branch:    feat/<feature> deleted (local + remote)
-Worktree:  <worktree-path> removed
+Branch:    <branch> deleted (local + remote)
+Worktree:  <worktree_path> removed
 State:     fractal-planet-workflow-state.json reset
 
 Done. You are now on main.

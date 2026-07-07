@@ -26,6 +26,8 @@ Schema:
 {
   "feature": "<slug>",
   "spec_file": "docs/specs/<NNN>-<slug>.md",
+  "branch": "feat/<slug> (enforced by planet-spec Phase 0)",
+  "worktree_path": "<actual worktree path, relative to repo-root>",
   "stage": "drafting-spec | ready-for-review | changes-requested | approved | implementing | complete | pr-changes-requested | validated",
   "updated_at": "<date>"
 }
