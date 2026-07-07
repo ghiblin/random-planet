@@ -3,7 +3,11 @@ use std::sync::Arc;
 use wgpu::util::DeviceExt;
 use winit::window::Window;
 
-use crate::buffers::{cube_indices, cube_vertices, pack_index_buffer, pack_vertex_buffer};
+use planet_core::mesh::Mesh;
+
+use crate::buffers::{
+    mesh_render_indices, mesh_render_vertices, pack_index_buffer, pack_vertex_buffer,
+};
 use crate::camera::Camera;
 use crate::uniforms::pack_view_projection_uniform;
 
@@ -56,8 +60,9 @@ impl Renderer {
         let surface_format = config.format;
         surface.configure(&device, &config);
 
-        let vertex_bytes = pack_vertex_buffer(&cube_vertices());
-        let index_list = cube_indices();
+        let mesh = Mesh::cube(1.0).map_err(|error| error.to_string())?;
+        let vertex_bytes = pack_vertex_buffer(&mesh_render_vertices(&mesh));
+        let index_list = mesh_render_indices(&mesh);
         let index_bytes = pack_index_buffer(&index_list);
 
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {

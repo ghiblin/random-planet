@@ -1,86 +1,36 @@
+use planet_core::mesh::Mesh;
+use planet_core::vec3::Vec3;
+
 #[derive(Debug, Clone, Copy)]
 pub struct Vertex {
     pub position: [f32; 3],
     pub normal: [f32; 3],
 }
 
-const HALF: f32 = 0.5;
-
-const FACES: [([f32; 3], [[f32; 3]; 4]); 6] = [
-    (
-        [1.0, 0.0, 0.0],
-        [
-            [HALF, -HALF, -HALF],
-            [HALF, HALF, -HALF],
-            [HALF, HALF, HALF],
-            [HALF, -HALF, HALF],
-        ],
-    ),
-    (
-        [-1.0, 0.0, 0.0],
-        [
-            [-HALF, -HALF, HALF],
-            [-HALF, HALF, HALF],
-            [-HALF, HALF, -HALF],
-            [-HALF, -HALF, -HALF],
-        ],
-    ),
-    (
-        [0.0, 1.0, 0.0],
-        [
-            [-HALF, HALF, -HALF],
-            [-HALF, HALF, HALF],
-            [HALF, HALF, HALF],
-            [HALF, HALF, -HALF],
-        ],
-    ),
-    (
-        [0.0, -1.0, 0.0],
-        [
-            [-HALF, -HALF, HALF],
-            [-HALF, -HALF, -HALF],
-            [HALF, -HALF, -HALF],
-            [HALF, -HALF, HALF],
-        ],
-    ),
-    (
-        [0.0, 0.0, 1.0],
-        [
-            [-HALF, -HALF, HALF],
-            [HALF, -HALF, HALF],
-            [HALF, HALF, HALF],
-            [-HALF, HALF, HALF],
-        ],
-    ),
-    (
-        [0.0, 0.0, -1.0],
-        [
-            [HALF, -HALF, -HALF],
-            [-HALF, -HALF, -HALF],
-            [-HALF, HALF, -HALF],
-            [HALF, HALF, -HALF],
-        ],
-    ),
-];
-
-pub fn cube_vertices() -> Vec<Vertex> {
-    FACES
+pub fn mesh_render_vertices(mesh: &Mesh) -> Vec<Vertex> {
+    mesh.triangles()
         .iter()
-        .flat_map(|(normal, positions)| {
-            positions.iter().map(|position| Vertex {
-                position: *position,
-                normal: *normal,
+        .flat_map(|triangle| {
+            let a = mesh.vertices()[triangle.a].position;
+            let b = mesh.vertices()[triangle.b].position;
+            let c = mesh.vertices()[triangle.c].position;
+            let normal = b
+                .sub(a)
+                .cross(c.sub(a))
+                .normalized()
+                .unwrap_or(Vec3::new(0.0, 0.0, 0.0));
+            let normal = [normal.x, normal.y, normal.z];
+            [a, b, c].into_iter().map(move |position| Vertex {
+                position: [position.x, position.y, position.z],
+                normal,
             })
         })
         .collect()
 }
 
-pub fn cube_indices() -> Vec<u16> {
-    (0..6u16)
-        .flat_map(|face| {
-            let base = face * 4;
-            [base, base + 1, base + 2, base, base + 2, base + 3]
-        })
+pub fn mesh_render_indices(mesh: &Mesh) -> Vec<u16> {
+    (0..3 * mesh.triangles().len())
+        .map(|index| index as u16)
         .collect()
 }
 
