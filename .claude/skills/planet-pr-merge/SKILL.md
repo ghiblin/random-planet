@@ -26,7 +26,7 @@ Schema:
 {
   "feature": "<slug>",
   "spec_file": "docs/specs/<NNN>-<slug>.md",
-  "branch": "<actual git branch name backing this feature's worktree>",
+  "branch": "feat/<slug> (enforced by planet-spec Phase 0)",
   "worktree_path": "<actual worktree path, relative to repo-root>",
   "stage": "drafting-spec | ready-for-review | changes-requested | approved | implementing | complete | pr-changes-requested | validated",
   "updated_at": "<date>"
@@ -38,7 +38,7 @@ Schema:
 - `stage` is anything other than `"validated"`: STOP. Tell the user the current stage and that `planet-pr-validate` must pass first (or `planet-tdd` first, if implementation itself isn't complete).
 - `stage == "validated"`: proceed.
 
-From the state file, `<feature>` is the `feature` slug. Read `branch` and `worktree_path` **directly from the state file** — do not re-derive `feat/<feature>` / `.claude/worktrees/<feature>` by convention, since a native worktree tool may have chosen different actual naming when `planet-spec` created the worktree.
+From the state file, `<feature>` is the `feature` slug. `branch` is guaranteed to be `feat/<feature>` (enforced by `planet-spec` Phase 0). Read `worktree_path` **directly from the state file** rather than deriving `.claude/worktrees/<feature>` by convention, since a native worktree tool may have chosen different actual directory naming when `planet-spec` created the worktree.
 
 ## Steps
 

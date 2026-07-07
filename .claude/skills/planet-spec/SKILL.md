@@ -26,14 +26,14 @@ Schema:
 {
   "feature": "<slug>",
   "spec_file": "docs/specs/<NNN>-<slug>.md",
-  "branch": "<actual git branch name backing this feature's worktree>",
+  "branch": "feat/<slug> (enforced by Phase 0)",
   "worktree_path": "<actual worktree path, relative to repo-root>",
   "stage": "drafting-spec | ready-for-review | changes-requested | approved | implementing | complete | pr-changes-requested | validated",
   "updated_at": "<date>"
 }
 ```
 
-`branch` and `worktree_path` record whatever a worktree-creation tool **actually** produced — never assume `feat/<slug>` / `.claude/worktrees/<slug>` literally. A native worktree tool, if available, may choose its own naming (e.g. sanitizing slashes, prefixing branch names); recording the real values keeps `planet-pr-merge` correct regardless of which mechanism created the worktree.
+`branch` is always `feat/<slug>` — enforced by Phase 0 below regardless of which mechanism created the worktree. `worktree_path` records whatever a worktree-creation tool **actually** produced — never assume `.claude/worktrees/<slug>` literally; a native worktree tool, if available, may choose its own directory naming (e.g. sanitizing slashes). Recording the real path keeps `planet-pr-merge` correct regardless of which mechanism created the worktree.
 
 - If the file doesn't exist, this is the first skill run for this worktree — create it.
 - If it exists for a **different** `feature` and `stage` is not `complete`: stop and tell the user another feature is mid-flight (name it and its stage). Ask whether to resume that feature instead, or confirm overwriting the state to start this one.
@@ -45,8 +45,17 @@ Schema:
 
 Before touching any file:
 - Choose a descriptive slug for the feature/phase (e.g. `cube-render`, `domain-data-model`, `icosahedron-subdivision`) — check `docs/roadmap.md` for the next phase's name if this is a roadmap phase rather than an ad-hoc feature
-- Invoke `superpowers:using-git-worktrees` (use the Skill tool directly), declaring a preferred worktree directory `.claude/worktrees/<slug>` and branch `feat/<slug>` — but a native worktree tool the skill defers to may choose different actual naming (e.g. sanitizing slashes). After creation, note the **actual** branch name and worktree path produced, whatever they are
-- Write `<repo-root>/.claude/fractal-planet-workflow-state.json` per "Workflow state file" above, with `stage: "drafting-spec"`, and `branch`/`worktree_path` set to the actual values from the previous step (not the declared preference, if they differ)
+- Invoke `superpowers:using-git-worktrees` (use the Skill tool directly), declaring a preferred worktree directory `.claude/worktrees/<slug>` and branch `feat/<slug>`
+- **Enforce the branch name — `constitution.md`'s worktree rule is non-negotiable for this project, overriding the generic skill's tool-naming default.** A native worktree tool the skill defers to may sanitize or prefix the branch it actually creates (e.g. `feat/cube-render` becoming `worktree-feat+cube-render`). After creation, check the branch actually checked out:
+  ```bash
+  git branch --show-current
+  ```
+  If it is not exactly `feat/<slug>`, rename it in place — this only relabels the branch, it does not move or recreate the worktree directory, so it cannot desync a native tool's bookkeeping of the worktree path:
+  ```bash
+  git branch -m feat/<slug>
+  ```
+- Note the actual worktree directory path (this is not renamed — only the branch name is enforced)
+- Write `<repo-root>/.claude/fractal-planet-workflow-state.json` per "Workflow state file" above, with `stage: "drafting-spec"`, `branch: "feat/<slug>"`, and `worktree_path` set to the actual directory path from the previous step
 
 All work — spec, implementation, tests — happens in this worktree.
 
