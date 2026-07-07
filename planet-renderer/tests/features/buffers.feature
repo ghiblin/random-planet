@@ -1,12 +1,12 @@
 Feature: Vertex and index buffer packing
 
-  Scenario: Packing the cube's vertex list produces a correctly sized buffer
-    Given the cube's fixed vertex list
+  Scenario: Packing a vertex list produces a correctly sized buffer
+    Given a vertex list with 2 vertices
     When the vertex list is packed into a vertex buffer
     Then the buffer's byte length equals the vertex count times the vertex stride
 
-  Scenario: Packing the cube's index list produces a correctly sized buffer
-    Given the cube's fixed index list
+  Scenario: Packing an index list produces a correctly sized buffer
+    Given an index list with 3 indices
     When the index list is packed into an index buffer
     Then the buffer's byte length equals the index count times the index size
 
