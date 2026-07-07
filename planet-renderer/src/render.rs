@@ -3,7 +3,9 @@ use std::sync::Arc;
 use wgpu::util::DeviceExt;
 use winit::window::Window;
 
-use planet_core::mesh::Mesh;
+use planet_core::icosahedron::icosahedron;
+use planet_core::subdivide::subdivide;
+use planet_core::uniform_red_split::UniformRedSplit;
 
 use crate::buffers::{
     mesh_render_indices, mesh_render_vertices, pack_index_buffer, pack_vertex_buffer,
@@ -12,6 +14,8 @@ use crate::camera::Camera;
 use crate::uniforms::pack_view_projection_uniform;
 
 const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
+// Temporary hardcoded value until 007-planet-presets wires up the depth slider.
+const SUBDIVISION_DEPTH: u32 = 3;
 
 pub struct Renderer {
     // Kept alive for the lifetime of the renderer: on the WebGPU backend, dropping the
@@ -60,7 +64,9 @@ impl Renderer {
         let surface_format = config.format;
         surface.configure(&device, &config);
 
-        let mesh = Mesh::cube(1.0).map_err(|error| error.to_string())?;
+        let base_mesh = icosahedron().map_err(|error| error.to_string())?;
+        let mesh = subdivide(&base_mesh, SUBDIVISION_DEPTH, &mut UniformRedSplit)
+            .map_err(|error| error.to_string())?;
         let vertex_bytes = pack_vertex_buffer(&mesh_render_vertices(&mesh));
         let index_list = mesh_render_indices(&mesh);
         let index_bytes = pack_index_buffer(&index_list);
