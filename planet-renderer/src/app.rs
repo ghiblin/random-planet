@@ -6,15 +6,22 @@ use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalPosition;
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
+use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::platform::web::WindowAttributesExtWebSys;
 use winit::window::{Window, WindowId};
 
+use planet_core::icosahedron::icosahedron;
+use planet_core::uniform_red_split::UniformRedSplit;
+
 use crate::camera::Camera;
 use crate::render::Renderer;
+use crate::subdivision_stepper::SubdivisionStepper;
 
 const ORBIT_SENSITIVITY: f32 = 0.005;
 const ZOOM_LINE_SENSITIVITY: f32 = 0.5;
 const ZOOM_PIXEL_SENSITIVITY: f32 = 0.01;
+// Temporary hardcoded value until 007-planet-presets wires up the depth slider.
+const MAX_SUBDIVISION_DEPTH: u32 = 3;
 
 pub struct App {
     window: Option<Arc<Window>>,
@@ -22,6 +29,8 @@ pub struct App {
     camera: Camera,
     dragging: bool,
     last_cursor: Option<PhysicalPosition<f64>>,
+    stepper: Option<SubdivisionStepper>,
+    wireframe: bool,
 }
 
 impl Default for App {
@@ -32,6 +41,8 @@ impl Default for App {
             camera: Camera::default(),
             dragging: false,
             last_cursor: None,
+            stepper: None,
+            wireframe: false,
         }
     }
 }
@@ -53,10 +64,23 @@ impl ApplicationHandler for App {
         self.window = Some(window.clone());
         window.request_redraw();
 
+        let base_mesh = match icosahedron() {
+            Ok(mesh) => mesh,
+            Err(error) => {
+                web_sys::console::error_1(
+                    &format!("failed to construct icosahedron: {error}").into(),
+                );
+                return;
+            }
+        };
+        let stepper = SubdivisionStepper::new(base_mesh, MAX_SUBDIVISION_DEPTH);
+        let initial_mesh = stepper.mesh().clone();
+        self.stepper = Some(stepper);
+
         let renderer_slot = self.renderer.clone();
         let size_probe = window.clone();
         wasm_bindgen_futures::spawn_local(async move {
-            match Renderer::new(window).await {
+            match Renderer::new(window, &initial_mesh).await {
                 Ok(mut renderer) => {
                     // The canvas may have been resized by the browser (e.g. once its
                     // ResizeObserver reports the real layout size) while the adapter/device
@@ -115,9 +139,36 @@ impl ApplicationHandler for App {
                 };
                 self.camera.zoom(-scroll);
             }
+            WindowEvent::KeyboardInput { event, .. } => {
+                if event.state == ElementState::Pressed && !event.repeat {
+                    match event.physical_key {
+                        PhysicalKey::Code(KeyCode::Space) => {
+                            let advanced = self
+                                .stepper
+                                .as_mut()
+                                .map(|stepper| stepper.step(&mut UniformRedSplit).unwrap_or(false))
+                                .unwrap_or(false);
+                            if advanced {
+                                if let (Some(stepper), Some(renderer)) =
+                                    (&self.stepper, self.renderer.borrow_mut().as_mut())
+                                {
+                                    renderer.set_mesh(stepper.mesh());
+                                }
+                                if let Some(window) = &self.window {
+                                    window.request_redraw();
+                                }
+                            }
+                        }
+                        PhysicalKey::Code(KeyCode::KeyW) => {
+                            self.wireframe = !self.wireframe;
+                        }
+                        _ => {}
+                    }
+                }
+            }
             WindowEvent::RedrawRequested => {
                 if let Some(renderer) = self.renderer.borrow().as_ref() {
-                    renderer.render(&self.camera);
+                    renderer.render(&self.camera, self.wireframe);
                 }
                 if let Some(window) = &self.window {
                     window.request_redraw();

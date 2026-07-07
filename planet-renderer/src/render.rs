@@ -3,19 +3,16 @@ use std::sync::Arc;
 use wgpu::util::DeviceExt;
 use winit::window::Window;
 
-use planet_core::icosahedron::icosahedron;
-use planet_core::subdivide::subdivide;
-use planet_core::uniform_red_split::UniformRedSplit;
+use planet_core::mesh::Mesh;
 
 use crate::buffers::{
-    mesh_render_indices, mesh_render_vertices, pack_index_buffer, pack_vertex_buffer,
+    mesh_render_indices, mesh_render_line_indices, mesh_render_vertices, pack_index_buffer,
+    pack_vertex_buffer,
 };
 use crate::camera::Camera;
 use crate::uniforms::pack_view_projection_uniform;
 
 const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
-// Temporary hardcoded value until 007-planet-presets wires up the depth slider.
-const SUBDIVISION_DEPTH: u32 = 3;
 
 pub struct Renderer {
     // Kept alive for the lifetime of the renderer: on the WebGPU backend, dropping the
@@ -26,16 +23,19 @@ pub struct Renderer {
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
     pipeline: wgpu::RenderPipeline,
+    wireframe_pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     index_count: u32,
+    line_index_buffer: wgpu::Buffer,
+    line_index_count: u32,
     uniform_buffer: wgpu::Buffer,
     uniform_bind_group: wgpu::BindGroup,
     depth_view: wgpu::TextureView,
 }
 
 impl Renderer {
-    pub async fn new(window: Arc<Window>) -> Result<Self, String> {
+    pub async fn new(window: Arc<Window>, mesh: &Mesh) -> Result<Self, String> {
         let size = window.inner_size();
         let instance = wgpu::Instance::default();
 
@@ -64,12 +64,11 @@ impl Renderer {
         let surface_format = config.format;
         surface.configure(&device, &config);
 
-        let base_mesh = icosahedron().map_err(|error| error.to_string())?;
-        let mesh = subdivide(&base_mesh, SUBDIVISION_DEPTH, &mut UniformRedSplit)
-            .map_err(|error| error.to_string())?;
-        let vertex_bytes = pack_vertex_buffer(&mesh_render_vertices(&mesh));
-        let index_list = mesh_render_indices(&mesh);
+        let vertex_bytes = pack_vertex_buffer(&mesh_render_vertices(mesh));
+        let index_list = mesh_render_indices(mesh);
         let index_bytes = pack_index_buffer(&index_list);
+        let line_index_list = mesh_render_line_indices(mesh);
+        let line_index_bytes = pack_index_buffer(&line_index_list);
 
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("cube vertex buffer"),
@@ -79,6 +78,11 @@ impl Renderer {
         let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("cube index buffer"),
             contents: &index_bytes,
+            usage: wgpu::BufferUsages::INDEX,
+        });
+        let line_index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("wireframe line index buffer"),
+            contents: &line_index_bytes,
             usage: wgpu::BufferUsages::INDEX,
         });
 
@@ -146,7 +150,7 @@ impl Renderer {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: Some("vs_main"),
-                buffers: &[Some(vertex_layout)],
+                buffers: &[Some(vertex_layout.clone())],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {
@@ -176,6 +180,42 @@ impl Renderer {
             cache: None,
         });
 
+        let wireframe_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("wireframe pipeline"),
+            layout: Some(&pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("vs_main"),
+                buffers: &[Some(vertex_layout.clone())],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("fs_main"),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: surface_format,
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::LineList,
+                cull_mode: None,
+                ..Default::default()
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: DEPTH_FORMAT,
+                depth_write_enabled: Some(true),
+                depth_compare: Some(wgpu::CompareFunction::Less),
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
+            multisample: wgpu::MultisampleState::default(),
+            multiview_mask: None,
+            cache: None,
+        });
+
         let depth_view = create_depth_view(&device, &config);
 
         Ok(Self {
@@ -185,13 +225,50 @@ impl Renderer {
             queue,
             config,
             pipeline,
+            wireframe_pipeline,
             vertex_buffer,
             index_buffer,
             index_count: index_list.len() as u32,
+            line_index_buffer,
+            line_index_count: line_index_list.len() as u32,
             uniform_buffer,
             uniform_bind_group,
             depth_view,
         })
+    }
+
+    /// Rebuilds the mesh-derived GPU buffers (vertex, triangle-list index, line-list index)
+    /// to match a newly given `Mesh` — used when subdivision advances by one step.
+    pub fn set_mesh(&mut self, mesh: &Mesh) {
+        let vertex_bytes = pack_vertex_buffer(&mesh_render_vertices(mesh));
+        let index_list = mesh_render_indices(mesh);
+        let index_bytes = pack_index_buffer(&index_list);
+        let line_index_list = mesh_render_line_indices(mesh);
+        let line_index_bytes = pack_index_buffer(&line_index_list);
+
+        self.vertex_buffer = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("cube vertex buffer"),
+                contents: &vertex_bytes,
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+        self.index_buffer = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("cube index buffer"),
+                contents: &index_bytes,
+                usage: wgpu::BufferUsages::INDEX,
+            });
+        self.index_count = index_list.len() as u32;
+        self.line_index_buffer =
+            self.device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("wireframe line index buffer"),
+                    contents: &line_index_bytes,
+                    usage: wgpu::BufferUsages::INDEX,
+                });
+        self.line_index_count = line_index_list.len() as u32;
     }
 
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
@@ -206,7 +283,7 @@ impl Renderer {
 
     /// Renders one frame. Silently skips the frame on a transient surface condition
     /// (occlusion, timeout, or an outdated/lost surface awaiting the next resize).
-    pub fn render(&self, camera: &Camera) {
+    pub fn render(&self, camera: &Camera, wireframe: bool) {
         let output = match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(texture)
             | wgpu::CurrentSurfaceTexture::Suboptimal(texture) => texture,
@@ -259,11 +336,21 @@ impl Renderer {
                 multiview_mask: None,
             });
 
-            pass.set_pipeline(&self.pipeline);
+            let (pipeline, index_buffer, index_count) = if wireframe {
+                (
+                    &self.wireframe_pipeline,
+                    &self.line_index_buffer,
+                    self.line_index_count,
+                )
+            } else {
+                (&self.pipeline, &self.index_buffer, self.index_count)
+            };
+
+            pass.set_pipeline(pipeline);
             pass.set_bind_group(0, &self.uniform_bind_group, &[]);
             pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-            pass.draw_indexed(0..self.index_count, 0, 0..1);
+            pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+            pass.draw_indexed(0..index_count, 0, 0..1);
         }
 
         self.queue.submit(Some(encoder.finish()));

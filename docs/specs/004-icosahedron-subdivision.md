@@ -22,6 +22,23 @@ Out of scope for this phase (later roadmap phases):
 - Camera, uniforms, or the wgpu pipeline/shader itself
 - Any mechanism for `Preset` to select a `SubdivisionStrategy` at runtime — that wiring belongs to whichever later phase introduces `Preset`
 
+### Amendment — manual visual-validation controls (wireframe + step-through subdivision)
+
+Added after the above was implemented, to make this phase's rendering manually verifiable in-browser (per `000-architecture.md`'s "manually verified in-browser per milestone" exemption for GPU/DOM code) before merge. All of this lives in `planet-renderer`; **`planet-core`'s public API is unchanged** — no new function, no signature change, no new dependency edge.
+
+- The renderer starts by displaying the **base icosahedron** (20 triangles), not a pre-subdivided mesh — subdivision now happens interactively
+- Pressing **Space** advances subdivision by exactly one round (calls `planet_core::subdivide::subdivide(mesh, 1, &mut UniformRedSplit)` once), up to a hardcoded cap `MAX_SUBDIVISION_DEPTH = 3` (replacing the old hardcoded `SUBDIVISION_DEPTH` constant); further presses beyond the cap are no-ops. This satisfies the constitution's max-depth-cap requirement for the interactive path the same way the original `depth` parameter did for the one-shot path
+- Pressing **W** toggles a wireframe view on/off; it never touches the underlying mesh, only which pipeline/index buffer is drawn
+- No event/callback system is added to `planet-core`: `subdivide` already computes exactly one round when called with `depth = 1`, so the renderer can drive step-by-step animation entirely from its own state by calling it repeatedly — this was a deliberate design choice over adding an observer API, since nothing on the roadmap yet needs multiple independent observers of subdivision progress
+- **Wireframe implementation constraint (verified against the actual `wgpu 30.0.0` source, `wgpu-types-30.0.0/src/features.rs`):** `wgpu::Features::POLYGON_MODE_LINE` (required for `PrimitiveState::polygon_mode = PolygonMode::Line`) is documented as supported only on DX12/Vulkan/Metal — explicitly "native only," **not available on the WebGPU backend** this project's actual browser/Trunk build target uses. A wireframe toggle relying on `PolygonMode::Line` would be silently unusable in the browser. Instead, wireframe is achieved by deriving a second `LineList` index buffer from the mesh's existing per-triangle-unrolled render vertices and drawing it with a second pipeline using `PrimitiveTopology::LineList` — this requires no special device feature and works identically on native and WebGPU backends
+- Key bindings (Space, W) are physical-key based (`winit::keyboard::PhysicalKey::Code`), ignoring OS key-repeat, so holding a key doesn't spam multiple steps/toggles per frame
+
+Out of scope for this amendment:
+- Animating steps automatically (e.g. on a timer) — Space triggers exactly one step per press
+- Any visual indicator of current round/depth in the UI (text overlay, etc.) — deferred, not requested
+- Changing `MAX_SUBDIVISION_DEPTH` at runtime (still a hardcoded constant, same as the depth slider being deferred to `007-planet-presets`)
+- Any change to camera controls, uniforms, or `shader.wgsl`
+
 ## Domain model involved
 
 **`planet-core/src/edge.rs` (new):**
@@ -65,7 +82,53 @@ Out of scope for this phase (later roadmap phases):
 - New local constant `const SUBDIVISION_DEPTH: u32 = 3;` — temporary hardcoded value, replaced by the depth slider in `007-planet-presets`
 - No other change: buffer packing (`pack_vertex_buffer`/`pack_index_buffer` via `mesh_render_vertices`/`mesh_render_indices`), pipeline setup, and draw call stay exactly as wired in `003-cube-mesh-wiring`
 
-No changes to `camera.rs`, `uniforms.rs`, `shader.wgsl`, `app.rs`, `buffers.rs`, or `mesh.rs`.
+No changes to `camera.rs`, `uniforms.rs`, `shader.wgsl`, or `mesh.rs`.
+
+### Amendment — manual visual-validation controls
+
+**`planet-renderer/src/buffers.rs` (updated):**
+- Add `mesh_render_line_indices(mesh: &Mesh) -> Vec<u16>` — pure, sibling to `mesh_render_indices`. For each triangle `i` (0-indexed) in `mesh.triangles()`, emits 6 indices into the *render-vertex* buffer (the one `mesh_render_vertices` produces, 3 unshared vertices per triangle): `3i, 3i+1, 3i+1, 3i+2, 3i+2, 3i` — three vertex-index pairs, one per triangle edge, forming a `LineList`. Returns a `Vec` of length `6 * mesh.triangles().len()`; empty for an empty `Mesh`. Same `u16` range assumption as `mesh_render_indices` (`3 * mesh.triangles().len() <= u16::MAX`)
+- `mesh_render_vertices`/`mesh_render_indices`/`pack_vertex_buffer`/`pack_index_buffer` unchanged
+
+**`planet-renderer/src/subdivision_stepper.rs` (new):**
+- `pub struct SubdivisionStepper { .. }` (private fields) — pure, natively-testable state machine (no wgpu/winit), same "pure logic, no GPU calls" bucket as `camera.rs`; `pub` because its BDD coverage lives in a separate `planet-renderer/tests/subdivision_stepper.rs` integration-test crate, same reason `Camera`/`EdgeCache`/etc. are `pub`:
+  - `SubdivisionStepper::new(base_mesh: Mesh, max_depth: u32) -> SubdivisionStepper` — starts with `rounds_completed() == 0` and `mesh()` equal to `base_mesh`
+  - `SubdivisionStepper::mesh(&self) -> &Mesh`
+  - `SubdivisionStepper::rounds_completed(&self) -> u32`
+  - `SubdivisionStepper::can_step(&self) -> bool` — `rounds_completed() < max_depth`
+  - `SubdivisionStepper::step(&mut self, strategy: &mut dyn SubdivisionStrategy) -> Result<bool, MeshError>` — if `!can_step()`, returns `Ok(false)` without touching `mesh`/`rounds_completed`; otherwise calls `planet_core::subdivide::subdivide(self.mesh(), 1, strategy)`, propagating any `Err` via `?` (unreachable in practice with `UniformRedSplit`, same rationale as elsewhere in this spec), replaces `mesh`, increments `rounds_completed`, and returns `Ok(true)`
+- This is the one piece of new logic that decides *whether/how* to advance subdivision; `app.rs` only calls it, it contains no decision logic of its own beyond dispatching key events
+
+**`planet-renderer/src/render.rs` (updated):**
+- `Renderer::new(window: Arc<Window>, mesh: &Mesh) -> Result<Self, String>` — now takes the initial mesh as a parameter instead of computing `icosahedron()`/`subdivide()` itself; builds `vertex_buffer`/`index_buffer`/`index_count` from it exactly as before, **plus** a new `line_index_buffer`/`line_index_count` built from `mesh_render_line_indices(mesh)`
+- New struct fields: `wireframe_pipeline: wgpu::RenderPipeline`, `line_index_buffer: wgpu::Buffer`, `line_index_count: u32`
+- `wireframe_pipeline` is built alongside the existing `pipeline`, reusing the same `pipeline_layout`, `vertex_layout`, `shader`, and `depth_stencil` config, differing only in `primitive: PrimitiveState { topology: PrimitiveTopology::LineList, cull_mode: None, ..Default::default() }` — no `PolygonMode::Line`, no `Features::POLYGON_MODE_LINE` requested anywhere
+- New method `Renderer::set_mesh(&mut self, mesh: &Mesh)` — rebuilds `vertex_buffer`, `index_buffer`, `index_count`, `line_index_buffer`, `line_index_count` from the given mesh via the same `device.create_buffer_init` calls as `new`, replacing the previous buffers (wgpu buffers are fixed-size, so a triangle-count change requires new buffer objects, not a `write_buffer` into the old ones)
+- `Renderer::render(&self, camera: &Camera, wireframe: bool)` — gains the `wireframe` parameter; when `true`, sets `wireframe_pipeline` and draws `line_index_buffer`/`line_index_count`; when `false`, behavior is byte-for-byte the same as before (`pipeline`/`index_buffer`/`index_count`)
+- No import of `icosahedron`/`subdivide`/`UniformRedSplit` in this file anymore — that responsibility moves to `app.rs`
+
+**`planet-renderer/src/app.rs` (updated):**
+- New fields: `stepper: Option<SubdivisionStepper>`, `wireframe: bool` (default `false`)
+- `const MAX_SUBDIVISION_DEPTH: u32 = 3;` (replaces `render.rs`'s old `SUBDIVISION_DEPTH` constant, same value, same "temporary until `007-planet-presets`'s depth slider" rationale)
+- `resumed()`: before spawning the async `Renderer::new` task, synchronously computes `icosahedron()`, and on `Err` logs via `web_sys::console::error_1` and returns early — same idiom already used for window-creation failure in this function. On `Ok(base_mesh)`, sets `self.stepper = Some(SubdivisionStepper::new(base_mesh, MAX_SUBDIVISION_DEPTH))`, then passes a clone of `stepper.mesh()` into the async block so `Renderer::new(window, &initial_mesh)` can be awaited exactly as `Renderer::new(window)` was before
+- `window_event`: new `WindowEvent::KeyboardInput { event, .. }` arm — only acts when `event.state == ElementState::Pressed && !event.repeat` (ignores OS key-repeat and key-up):
+  - `PhysicalKey::Code(KeyCode::Space)`: if `self.stepper` is `Some` and `stepper.step(&mut UniformRedSplit).unwrap_or(false)` is `true` (the `Err` branch is unreachable in practice, same rationale as elsewhere — `unwrap_or` is not a panic), calls `renderer.set_mesh(stepper.mesh())` on the active `Renderer` (if present) and requests a redraw
+  - `PhysicalKey::Code(KeyCode::KeyW)`: flips `self.wireframe`
+- `RedrawRequested` arm: `renderer.render(&self.camera, self.wireframe)` (was `renderer.render(&self.camera)`)
+
+**`planet-renderer/src/lib.rs` (updated):**
+- Add `pub mod subdivision_stepper;` (unconditional, like `camera`/`buffers`/`uniforms` — not wasm32-gated, since it has no GPU/browser dependency)
+
+**`planet-renderer/tests/features/mesh_render_line_indices.feature` / `planet-renderer/tests/mesh_render_line_indices.rs` (new):**
+- BDD coverage for `mesh_render_line_indices`, mirroring `mesh_render_indices.feature`'s style
+
+**`planet-renderer/tests/features/subdivision_stepper.feature` / `planet-renderer/tests/subdivision_stepper.rs` (new):**
+- BDD coverage for `SubdivisionStepper`, mirroring `camera.feature`'s style
+
+**`planet-renderer/Cargo.toml` (updated):**
+- Add `[[test]] name = "mesh_render_line_indices" harness = false` and `[[test]] name = "subdivision_stepper" harness = false`
+
+No changes to `camera.rs`, `uniforms.rs`, `shader.wgsl`, or `mesh.rs` in this amendment either. `render.rs`/`app.rs` remain thin wiring — not BDD-tested, per `rules.md`'s testability split — all new decision logic (`mesh_render_line_indices`, `SubdivisionStepper`) lives in pure, tested modules.
 
 ## Function/API contracts
 
@@ -84,6 +147,22 @@ No changes to `camera.rs`, `uniforms.rs`, `shader.wgsl`, `app.rs`, `buffers.rs`,
 - Every vertex produced by `subdivide` with `UniformRedSplit` applied (at any depth) to `icosahedron()`'s output has `position.length() <= 1.0 + 1e-5` — exact-midpoint splitting of points at or inside the unit sphere can only move new points toward the center, never beyond it; this is this phase's stand-in for the preset-driven radius bound that `007-planet-presets` will introduce
 - `planet-core` has zero new `unwrap()`/`panic!()` in production code outside tests (constitution + `rules.md`); `icosahedron()`'s and `split_round`'s internal `Mesh::new` calls propagate via `?`, never unwrapped
 - `render.rs` builds its vertex/index buffers from `subdivide(&icosahedron()?, 3, &mut UniformRedSplit)?` instead of `Mesh::cube(1.0)`; `mesh_render_vertices`/`mesh_render_indices` are unmodified and still used as-is
+
+### Amendment — manual visual-validation controls
+
+- `mesh_render_line_indices(mesh)` returns a `Vec<u16>` of length exactly `6 * mesh.triangles().len()`; for `mesh.triangles().len() == 0` it returns an empty `Vec`; it never panics for any valid `Mesh`
+- For triangle `i`, the 6 values at `mesh_render_line_indices(mesh)[6*i .. 6*i+6]` are exactly `[3*i, 3*i+1, 3*i+1, 3*i+2, 3*i+2, 3*i]` (as `u16`)
+- `SubdivisionStepper::new(base_mesh, max_depth)` never panics; immediately after construction, `rounds_completed() == 0` and `mesh() == &base_mesh`
+- `SubdivisionStepper::can_step()` is `true` if and only if `rounds_completed() < max_depth`
+- `SubdivisionStepper::step(strategy)` returns `Ok(true)` and applies exactly one round of `subdivide(mesh(), 1, strategy)` (incrementing `rounds_completed()` by exactly 1) whenever `can_step()` was `true` before the call
+- `SubdivisionStepper::step(strategy)` returns `Ok(false)` and leaves `mesh()`/`rounds_completed()` byte-for-byte unchanged whenever `can_step()` was `false` before the call — `rounds_completed()` never exceeds `max_depth`, regardless of how many times `step` is called (this is the interactive path's max-depth cap, per the constitution)
+- `Renderer::new(window, mesh)` builds its GPU buffers from exactly the given `mesh` — it performs no subdivision or icosahedron construction of its own
+- `Renderer::set_mesh(mesh)` leaves `pipeline`/`wireframe_pipeline`/`uniform_buffer`/`uniform_bind_group`/`depth_view` untouched; only the mesh-derived buffers (`vertex_buffer`, `index_buffer`, `index_count`, `line_index_buffer`, `line_index_count`) are replaced
+- `Renderer::render(camera, false)` behaves identically to the pre-amendment `Renderer::render(camera)` (draws `pipeline` + `index_buffer` + `index_count`)
+- `Renderer::render(camera, true)` draws `wireframe_pipeline` + `line_index_buffer` + `line_index_count` instead
+- The wireframe pipeline's `PrimitiveState` never sets `polygon_mode: PolygonMode::Line`, and `Renderer::new`'s device request never includes `wgpu::Features::POLYGON_MODE_LINE` — verified via `grep` (this is what keeps the wasm32/WebGPU build working, since that feature is native-only)
+- `planet-core`'s public API (`icosahedron`, `subdivide`, `SubdivisionStrategy`, `UniformRedSplit`, `EdgeCache`, `EdgeKey`) has zero signature changes and zero new items in this amendment — verified via `git diff` touching only `planet-renderer/`
+- No new `unwrap()`/`panic!()` in production code outside tests; `app.rs`'s `stepper.step(&mut UniformRedSplit).unwrap_or(false)` uses the non-panicking `unwrap_or` combinator, matching the existing `mesh_render_vertices`'s `.unwrap_or(...)` idiom for a `Result`/`Option` branch that is unreachable in practice
 
 ## BDD scenarios
 
@@ -161,6 +240,46 @@ Feature: Recursive subdivision via a pluggable SubdivisionStrategy
     And the resulting Mesh has 6 vertices
 ```
 
+### Amendment — manual visual-validation controls
+
+`planet-renderer/tests/features/mesh_render_line_indices.feature`:
+
+```gherkin
+Feature: Converting a Mesh into wireframe line-list render indices
+
+  Scenario: Converting a cube Mesh into line indices produces edge pairs per triangle
+    Given a Mesh constructed by Mesh::cube with side 1.0
+    When the mesh is converted into wireframe line indices
+    Then the wireframe line index list has 72 indices
+    And the wireframe line indices for the first triangle are 0, 1, 1, 2, 2, 0
+
+  Scenario: Converting an empty Mesh into wireframe line indices produces an empty list
+    Given an empty Mesh with no vertices and no triangles
+    When the mesh is converted into wireframe line indices
+    Then the wireframe line index list is empty
+```
+
+`planet-renderer/tests/features/subdivision_stepper.feature`:
+
+```gherkin
+Feature: Stepping through subdivision one round at a time
+
+  Scenario: Stepping advances the mesh by exactly one subdivision round
+    Given a SubdivisionStepper constructed from the icosahedron mesh with max depth 3
+    When the stepper is stepped once using the uniform red-split strategy
+    Then the step succeeds
+    And the stepper has completed 1 rounds
+    And the stepper's mesh has 80 triangles
+
+  Scenario: Stepping repeatedly stops advancing once max depth is reached
+    Given a SubdivisionStepper constructed from the icosahedron mesh with max depth 1
+    When the stepper is stepped once using the uniform red-split strategy
+    And the stepper is stepped again using the uniform red-split strategy
+    Then the second step does not succeed
+    And the stepper has completed 1 rounds
+    And the stepper's mesh has 80 triangles
+```
+
 ## Acceptance criteria
 
 1. `icosahedron()` returns `Ok(Mesh)` with exactly 12 vertices and 20 triangles
@@ -184,3 +303,23 @@ Feature: Recursive subdivision via a pluggable SubdivisionStrategy
 19. `cargo build --target wasm32-unknown-unknown -p planet-renderer` still succeeds
 20. No new `unwrap()`/`panic!()` in `planet-core` or `planet-renderer`'s production code outside tests
 21. Existing `mesh.feature`, `vec3.feature`, `camera`/`uniforms`/`buffers` BDD scenarios from prior phases still pass unmodified
+
+### Amendment — manual visual-validation controls
+
+22. `mesh_render_line_indices(mesh)` returns exactly `6 * mesh.triangles().len()` `u16` values; for the cube mesh (12 triangles) that's 72
+23. For every triangle `i`, `mesh_render_line_indices(mesh)[6*i..6*i+6] == [3*i, 3*i+1, 3*i+1, 3*i+2, 3*i+2, 3*i]`
+24. `mesh_render_line_indices` applied to an empty `Mesh` returns an empty `Vec<u16>`
+25. `SubdivisionStepper::new(base_mesh, max_depth)` starts with `rounds_completed() == 0` and `mesh()` equal to `base_mesh`
+26. `SubdivisionStepper::step` succeeds (`Ok(true)`), applies exactly one subdivision round, and increments `rounds_completed` by 1, whenever `rounds_completed < max_depth`
+27. `SubdivisionStepper::step` returns `Ok(false)` and changes nothing whenever `rounds_completed == max_depth` — repeated calls never exceed `max_depth`
+28. `Renderer::new` takes an initial `&Mesh` parameter and no longer calls `icosahedron()`/`subdivide()` itself
+29. `Renderer::set_mesh` rebuilds exactly the mesh-derived buffers (vertex, index, line-index) and leaves every other `Renderer` field untouched
+30. `Renderer::render(camera, false)` draws identically to the pre-amendment `render(camera)`; `Renderer::render(camera, true)` draws the `LineList` wireframe pipeline/buffer instead
+31. Neither `PolygonMode::Line` nor `wgpu::Features::POLYGON_MODE_LINE` appears anywhere in `planet-renderer` — verified via `grep`
+32. `planet-core`'s public API has zero changes in this amendment — verified via `git diff --stat` touching only `planet-renderer/` and `docs/specs/`
+33. Pressing Space in-browser advances the rendered mesh by one subdivision round per press, up to `MAX_SUBDIVISION_DEPTH` presses, starting from the 20-triangle icosahedron (manual/in-browser check, per `000-architecture.md`'s exemption for GPU/DOM wiring — not BDD-tested)
+34. Pressing W in-browser toggles between solid and wireframe rendering of the current mesh (manual/in-browser check)
+35. All new scenarios in `mesh_render_line_indices.feature` and `subdivision_stepper.feature` pass via real `cucumber` step definitions — no undefined/stub steps
+36. `cargo test --workspace`, `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings` all pass; `cargo build --target wasm32-unknown-unknown -p planet-renderer` still succeeds
+37. No new `unwrap()`/`panic!()` in production code outside tests (the `unwrap_or` combinator used in `app.rs` is not a panic)
+38. All BDD scenarios from before this amendment (`icosahedron.feature`, `subdivide.feature`, `mesh.feature`, `vec3.feature`, `camera.feature`, `buffers.feature`, `uniforms.feature`, `mesh_render_vertices.feature`, `mesh_render_indices.feature`) still pass unmodified
