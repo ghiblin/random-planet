@@ -34,6 +34,15 @@ pub fn mesh_render_indices(mesh: &Mesh) -> Vec<u16> {
         .collect()
 }
 
+pub fn mesh_render_line_indices(mesh: &Mesh) -> Vec<u16> {
+    (0..mesh.triangles().len())
+        .flat_map(|i| {
+            let base = 3 * i as u16;
+            [base, base + 1, base + 1, base + 2, base + 2, base]
+        })
+        .collect()
+}
+
 pub fn pack_vertex_buffer(vertices: &[Vertex]) -> Vec<u8> {
     let mut bytes = Vec::with_capacity(std::mem::size_of_val(vertices));
     for vertex in vertices {

@@ -1,0 +1,46 @@
+use crate::mesh::Vertex;
+use std::collections::HashMap;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct EdgeKey {
+    pub low: usize,
+    pub high: usize,
+}
+
+impl EdgeKey {
+    pub fn new(a: usize, b: usize) -> EdgeKey {
+        EdgeKey {
+            low: a.min(b),
+            high: a.max(b),
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct EdgeCache {
+    midpoints: HashMap<EdgeKey, usize>,
+}
+
+impl EdgeCache {
+    pub fn new() -> EdgeCache {
+        EdgeCache::default()
+    }
+
+    pub fn get_or_insert_with(
+        &mut self,
+        a: usize,
+        b: usize,
+        vertices: &mut Vec<Vertex>,
+        compute: impl FnOnce(&Vertex, &Vertex) -> Vertex,
+    ) -> usize {
+        let key = EdgeKey::new(a, b);
+        if let Some(&index) = self.midpoints.get(&key) {
+            return index;
+        }
+        let vertex = compute(&vertices[a], &vertices[b]);
+        let index = vertices.len();
+        vertices.push(vertex);
+        self.midpoints.insert(key, index);
+        index
+    }
+}

@@ -11,6 +11,14 @@ harness = false
 name = "mesh"
 harness = false
 
+[[test]]
+name = "icosahedron"
+harness = false
+
+[[test]]
+name = "subdivide"
+harness = false
+
 [dependencies]
 rand = "0.10.2"
 rand_pcg = "0.10.2"
