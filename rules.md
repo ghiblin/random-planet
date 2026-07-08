@@ -23,10 +23,14 @@ file (naming, one-type-per-file) is enforced — not by an automated test.
   `Mesh::icosahedron()` / `Mesh::cube()`, never directly) for mesh-construction
   functions built entirely from `geometry`'s own types
 - `subdivision/` — `edge.rs` (`EdgeKey`, `EdgeCache`, `pub(crate)`), `steps.rs`
-  (`Steps`, `StepsError`), `subdivision_mode.rs` (`SubdivisionMode`),
-  `subdivision_args.rs` (`SubdivisionArgs`), `subdivide.rs` (`SubdivisionStrategy`
-  `pub(crate)`, `subdivide`), `uniform_red_split.rs` (`UniformRedSplit`, `pub(crate)`):
-  the recursive subdivision algorithm and its public configuration facade
+  (`Steps`, `StepsError`), `seed.rs` (`Seed`), `elevation_noise_range.rs`
+  (`ElevationNoiseRange`, `ElevationNoiseRangeError`), `subdivision_mode.rs`
+  (`SubdivisionMode`), `subdivision_args.rs` (`SubdivisionArgs`), `subdivide.rs`
+  (`SubdivisionStrategy` `pub(crate)`, `subdivide`); plus a nested `strategies/`
+  sub-concern (`uniform_red_split.rs`, `radial_random_split.rs`, both `pub(crate)`
+  — exposed publicly only via `SubdivisionMode`, never directly) for the concrete
+  subdivision-algorithm implementations: the recursive subdivision algorithm and
+  its public configuration facade
 
 `planet-renderer`'s concerns:
 - `scene/` — `camera.rs` (`Camera`): orbit/zoom input math

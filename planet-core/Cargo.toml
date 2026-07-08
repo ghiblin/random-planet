@@ -27,6 +27,14 @@ harness = false
 name = "subdivision_args"
 harness = false
 
+[[test]]
+name = "seed"
+harness = false
+
+[[test]]
+name = "elevation_noise_range"
+harness = false
+
 [dependencies]
 rand = "0.10.2"
 rand_pcg = "0.10.2"
