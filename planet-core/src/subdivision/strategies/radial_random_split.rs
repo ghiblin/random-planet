@@ -1,11 +1,11 @@
 use rand::{RngExt, SeedableRng};
 use rand_pcg::Pcg32;
 
-use super::edge::EdgeCache;
-use super::elevation_noise_range::ElevationNoiseRange;
-use super::seed::Seed;
-use super::subdivide::SubdivisionStrategy;
 use crate::geometry::mesh::{Triangle, Vertex};
+use crate::subdivision::edge::EdgeCache;
+use crate::subdivision::elevation_noise_range::ElevationNoiseRange;
+use crate::subdivision::seed::Seed;
+use crate::subdivision::subdivide::SubdivisionStrategy;
 
 pub(crate) const MIN_VERTEX_RADIUS: f32 = 0.05;
 

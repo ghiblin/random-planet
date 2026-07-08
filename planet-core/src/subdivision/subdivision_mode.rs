@@ -1,8 +1,8 @@
 use super::elevation_noise_range::ElevationNoiseRange;
-use super::radial_random_split::RadialRandomSplit;
 use super::seed::Seed;
+use super::strategies::radial_random_split::RadialRandomSplit;
+use super::strategies::uniform_red_split::UniformRedSplit;
 use super::subdivide::SubdivisionStrategy;
-use super::uniform_red_split::UniformRedSplit;
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub enum SubdivisionMode {
