@@ -1,5 +1,5 @@
 use cucumber::{World as _, given, then, when};
-use planet_renderer::buffers::{Vertex, pack_index_buffer, pack_vertex_buffer};
+use planet_renderer::gpu::buffers::{Vertex, pack_index_buffer, pack_vertex_buffer};
 
 #[derive(Debug, Default, cucumber::World)]
 pub struct BuffersWorld {

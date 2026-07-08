@@ -1,7 +1,7 @@
-use crate::mesh::{Mesh, MeshError, Triangle, Vertex};
-use crate::vec3::Vec3;
+use crate::geometry::mesh::{Mesh, MeshError, Triangle, Vertex};
+use crate::geometry::vec3::Vec3;
 
-pub fn icosahedron() -> Result<Mesh, MeshError> {
+pub(crate) fn icosahedron() -> Result<Mesh, MeshError> {
     let phi = (1.0 + 5.0_f32.sqrt()) / 2.0;
     let scale = 1.0 / (1.0 + phi * phi).sqrt();
 

@@ -1,5 +1,5 @@
 use cucumber::{World as _, given, then, when};
-use planet_core::steps::{Steps, StepsError};
+use planet_core::subdivision::steps::{Steps, StepsError};
 
 #[derive(Debug, Default, cucumber::World)]
 pub struct StepsWorld {

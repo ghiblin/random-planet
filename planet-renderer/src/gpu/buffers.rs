@@ -1,5 +1,5 @@
-use planet_core::mesh::Mesh;
-use planet_core::vec3::Vec3;
+use planet_core::geometry::mesh::Mesh;
+use planet_core::geometry::vec3::Vec3;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Vertex {

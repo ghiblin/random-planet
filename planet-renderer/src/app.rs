@@ -10,13 +10,12 @@ use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::platform::web::WindowAttributesExtWebSys;
 use winit::window::{Window, WindowId};
 
-use planet_core::icosahedron::icosahedron;
-use planet_core::mesh::Mesh;
-use planet_core::subdivide::subdivide;
-use planet_core::subdivision_args::SubdivisionArgs;
+use planet_core::geometry::mesh::Mesh;
+use planet_core::subdivision::subdivide::subdivide;
+use planet_core::subdivision::subdivision_args::SubdivisionArgs;
 
-use crate::camera::Camera;
-use crate::render::Renderer;
+use crate::gpu::render::Renderer;
+use crate::scene::camera::Camera;
 
 const ORBIT_SENSITIVITY: f32 = 0.005;
 const ZOOM_LINE_SENSITIVITY: f32 = 0.5;
@@ -65,7 +64,7 @@ impl ApplicationHandler for App {
         self.window = Some(window.clone());
         window.request_redraw();
 
-        let base_mesh = match icosahedron() {
+        let base_mesh = match Mesh::icosahedron() {
             Ok(mesh) => mesh,
             Err(error) => {
                 web_sys::console::error_1(
