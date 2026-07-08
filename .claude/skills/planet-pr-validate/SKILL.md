@@ -46,7 +46,25 @@ At the end (Verdict), write the result back to the state file — see "Verdict" 
 gh pr view --json number,title,url,headRefName
 ```
 
-**If no PR exists for the current branch:** STOP. Tell the user to open the PR first — this skill validates an existing PR, it does not create one.
+**If no PR exists for the current branch, create it:**
+
+1. Push the branch if it has no upstream yet:
+   ```bash
+   git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null || git push -u origin HEAD
+   ```
+2. Derive the title from the spec: the spec file's `# NNN — Title` heading, as a semantic-commit-style summary (e.g. `feat: title in lowercase`), under 70 characters.
+3. Create the PR against `main`, with a body summarizing the spec's Requirements and listing its Acceptance criteria as a test-plan checklist:
+   ```bash
+   gh pr create --base main --title "<derived title>" --body "$(cat <<'EOF'
+   ## Summary
+   <1-3 bullets from the spec's Requirements section>
+
+   ## Test plan
+   <Acceptance criteria from spec_file, as a checklist>
+   EOF
+   )"
+   ```
+4. Proceed with the checklist below against the PR just created — do not stop and ask the user to open it manually.
 
 Fetch the diff for review:
 ```bash
