@@ -59,3 +59,52 @@ Feature: Recursive subdivision via the SubdivisionMode facade
     Given an icosahedron mesh
     When the mesh is subdivided with 0 steps using SubdivisionMode::UniformRedSplit and a recording update callback
     Then the update callback was invoked 0 times
+
+  Scenario: Subdividing the icosahedron mesh by 1 step using SubdivisionMode::RadialRandomSplit quadruples the triangle count
+    Given an icosahedron mesh
+    When the mesh is subdivided with 1 step using SubdivisionMode::RadialRandomSplit with seed 7 and the default ElevationNoiseRange
+    Then the resulting Mesh has 80 triangles
+
+  Scenario: Subdividing the icosahedron mesh with SubdivisionMode::RadialRandomSplit does not duplicate vertices at shared edges
+    Given an icosahedron mesh
+    When the mesh is subdivided with 1 step using SubdivisionMode::RadialRandomSplit with seed 7 and the default ElevationNoiseRange
+    Then the resulting Mesh has 42 vertices
+
+  Scenario: Subdividing the icosahedron mesh with SubdivisionMode::RadialRandomSplit never creates cracks between adjacent triangles
+    Given an icosahedron mesh
+    When the mesh is subdivided with 2 steps using SubdivisionMode::RadialRandomSplit with seed 7 and the default ElevationNoiseRange
+    Then no two vertices in the resulting Mesh have the same position
+
+  Scenario: Subdividing the icosahedron mesh with SubdivisionMode::RadialRandomSplit keeps every vertex radius within the configured bound
+    Given an icosahedron mesh
+    When the mesh is subdivided with 2 steps using SubdivisionMode::RadialRandomSplit with seed 7 and an ElevationNoiseRange of low -0.1 and high 0.1
+    Then every vertex of the resulting Mesh has a radius less than or equal to 1.2
+    And every vertex of the resulting Mesh has a radius greater than or equal to 0.05
+
+  Scenario: Subdividing with 0 steps using SubdivisionMode::RadialRandomSplit leaves the mesh unchanged
+    Given an icosahedron mesh
+    When the mesh is subdivided with 0 steps using SubdivisionMode::RadialRandomSplit with seed 7 and the default ElevationNoiseRange
+    Then the resulting Mesh is identical to the icosahedron mesh
+
+  Scenario: SubdivisionMode::RadialRandomSplit never displaces the mesh's original vertices
+    Given an icosahedron mesh
+    When the mesh is subdivided with 1 step using SubdivisionMode::RadialRandomSplit with seed 7 and an ElevationNoiseRange of low -0.1 and high 0.1
+    Then the first 12 vertices of the resulting Mesh have the same positions as the icosahedron mesh's vertices
+
+  Scenario: SubdivisionMode::RadialRandomSplit is deterministic for a given seed
+    Given an icosahedron mesh
+    When the mesh is subdivided with 2 steps using SubdivisionMode::RadialRandomSplit with seed 7 and the default ElevationNoiseRange, producing the first Mesh
+    And the same icosahedron mesh is subdivided with 2 steps using SubdivisionMode::RadialRandomSplit with seed 7 and the default ElevationNoiseRange, producing the second Mesh
+    Then the first Mesh and the second Mesh are identical
+
+  Scenario: SubdivisionMode::RadialRandomSplit with different seeds produces different vertex positions
+    Given an icosahedron mesh
+    When the mesh is subdivided with 1 step using SubdivisionMode::RadialRandomSplit with seed 7 and an ElevationNoiseRange of low -0.1 and high 0.1, producing the first Mesh
+    And the same icosahedron mesh is subdivided with 1 step using SubdivisionMode::RadialRandomSplit with seed 99 and an ElevationNoiseRange of low -0.1 and high 0.1, producing the second Mesh
+    Then the first Mesh and the second Mesh are not identical
+
+  Scenario: SubdivisionMode::RadialRandomSplit with a zero-width ElevationNoiseRange at zero behaves like SubdivisionMode::UniformRedSplit
+    Given an icosahedron mesh
+    When the mesh is subdivided with 1 step using SubdivisionMode::RadialRandomSplit with seed 7 and an ElevationNoiseRange of low 0.0 and high 0.0, producing the first Mesh
+    And the same icosahedron mesh is subdivided with 1 step using SubdivisionMode::UniformRedSplit, producing the second Mesh
+    Then the first Mesh and the second Mesh are identical
