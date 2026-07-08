@@ -1,6 +1,6 @@
 use cucumber::{World as _, given, then, when};
-use planet_core::mesh::Mesh;
-use planet_renderer::buffers::mesh_render_indices;
+use planet_core::geometry::mesh::Mesh;
+use planet_renderer::gpu::buffers::mesh_render_indices;
 
 #[derive(Debug, Default, cucumber::World)]
 pub struct MeshRenderIndicesWorld {

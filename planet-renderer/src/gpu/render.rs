@@ -3,14 +3,14 @@ use std::sync::Arc;
 use wgpu::util::DeviceExt;
 use winit::window::Window;
 
-use planet_core::mesh::Mesh;
+use planet_core::geometry::mesh::Mesh;
 
-use crate::buffers::{
+use super::buffers::{
     mesh_render_indices, mesh_render_line_indices, mesh_render_vertices, pack_index_buffer,
     pack_vertex_buffer,
 };
-use crate::camera::Camera;
-use crate::uniforms::pack_view_projection_uniform;
+use super::uniforms::pack_view_projection_uniform;
+use crate::scene::camera::Camera;
 
 const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 

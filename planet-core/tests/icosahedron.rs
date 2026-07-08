@@ -1,6 +1,5 @@
 use cucumber::{World as _, given, then};
-use planet_core::icosahedron::icosahedron;
-use planet_core::mesh::Mesh;
+use planet_core::geometry::mesh::Mesh;
 
 #[derive(Debug, Default, cucumber::World)]
 pub struct IcosahedronWorld {
@@ -17,7 +16,7 @@ impl IcosahedronWorld {
 
 #[given("an icosahedron mesh")]
 fn given_icosahedron(world: &mut IcosahedronWorld) {
-    world.mesh = Some(icosahedron().expect("icosahedron() failed"));
+    world.mesh = Some(Mesh::icosahedron().expect("Mesh::icosahedron() failed"));
 }
 
 #[then("the Mesh is constructed successfully")]

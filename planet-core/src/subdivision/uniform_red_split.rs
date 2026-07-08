@@ -1,6 +1,6 @@
-use crate::edge::EdgeCache;
-use crate::mesh::{Triangle, Vertex};
-use crate::subdivide::SubdivisionStrategy;
+use super::edge::EdgeCache;
+use super::subdivide::SubdivisionStrategy;
+use crate::geometry::mesh::{Triangle, Vertex};
 
 fn exact_midpoint(a: &Vertex, b: &Vertex) -> Vertex {
     Vertex {

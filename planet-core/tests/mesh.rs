@@ -1,6 +1,6 @@
 use cucumber::{World as _, given, then, when};
-use planet_core::mesh::{Mesh, MeshError, Triangle, Vertex};
-use planet_core::vec3::Vec3;
+use planet_core::geometry::mesh::{Mesh, MeshError, Triangle, Vertex};
+use planet_core::geometry::vec3::Vec3;
 
 #[derive(Debug, Default, cucumber::World)]
 pub struct MeshWorld {

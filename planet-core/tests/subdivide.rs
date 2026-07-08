@@ -1,11 +1,10 @@
 use cucumber::{World as _, given, then, when};
-use planet_core::icosahedron::icosahedron;
-use planet_core::mesh::{Mesh, Triangle, Vertex};
-use planet_core::steps::Steps;
-use planet_core::subdivide::subdivide;
-use planet_core::subdivision_args::{SubdivisionArgs, UpdateCallback};
-use planet_core::subdivision_mode::SubdivisionMode;
-use planet_core::vec3::Vec3;
+use planet_core::geometry::mesh::{Mesh, Triangle, Vertex};
+use planet_core::geometry::vec3::Vec3;
+use planet_core::subdivision::steps::Steps;
+use planet_core::subdivision::subdivide::subdivide;
+use planet_core::subdivision::subdivision_args::{SubdivisionArgs, UpdateCallback};
+use planet_core::subdivision::subdivision_mode::SubdivisionMode;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -45,7 +44,7 @@ impl SubdivideWorld {
 
 #[given("an icosahedron mesh")]
 fn given_icosahedron(world: &mut SubdivideWorld) {
-    world.icosahedron_mesh = Some(icosahedron().expect("icosahedron() failed"));
+    world.icosahedron_mesh = Some(Mesh::icosahedron().expect("Mesh::icosahedron() failed"));
 }
 
 #[given("a Mesh with 3 vertices at the corners of an arbitrary triangle")]
