@@ -11,8 +11,11 @@ use winit::platform::web::WindowAttributesExtWebSys;
 use winit::window::{Window, WindowId};
 
 use planet_core::geometry::mesh::Mesh;
+use planet_core::subdivision::elevation_noise_range::ElevationNoiseRange;
+use planet_core::subdivision::seed::Seed;
 use planet_core::subdivision::subdivide::subdivide;
 use planet_core::subdivision::subdivision_args::SubdivisionArgs;
+use planet_core::subdivision::subdivision_mode::SubdivisionMode;
 
 use crate::gpu::render::Renderer;
 use crate::scene::camera::Camera;
@@ -20,6 +23,7 @@ use crate::scene::camera::Camera;
 const ORBIT_SENSITIVITY: f32 = 0.005;
 const ZOOM_LINE_SENSITIVITY: f32 = 0.5;
 const ZOOM_PIXEL_SENSITIVITY: f32 = 0.01;
+const DEMO_SEED: u64 = 42;
 
 pub struct App {
     window: Option<Arc<Window>>,
@@ -79,7 +83,14 @@ impl ApplicationHandler for App {
         let update_cb: Box<dyn FnMut(&Mesh, usize)> = Box::new(move |mesh, _round| {
             frame_collector.borrow_mut().push(mesh.clone());
         });
-        let args = SubdivisionArgs::new(None, None, Some(update_cb));
+        let args = SubdivisionArgs::new(
+            None,
+            Some(SubdivisionMode::RadialRandomSplit {
+                seed: Seed::from(DEMO_SEED),
+                elevation_noise_range: ElevationNoiseRange::default(),
+            }),
+            Some(update_cb),
+        );
         if let Err(error) = subdivide(&base_mesh, args) {
             web_sys::console::error_1(&format!("failed to subdivide icosahedron: {error}").into());
             return;

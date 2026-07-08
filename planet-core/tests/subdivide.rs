@@ -1,6 +1,8 @@
 use cucumber::{World as _, given, then, when};
 use planet_core::geometry::mesh::{Mesh, Triangle, Vertex};
 use planet_core::geometry::vec3::Vec3;
+use planet_core::subdivision::elevation_noise_range::ElevationNoiseRange;
+use planet_core::subdivision::seed::Seed;
 use planet_core::subdivision::steps::Steps;
 use planet_core::subdivision::subdivide::subdivide;
 use planet_core::subdivision::subdivision_args::{SubdivisionArgs, UpdateCallback};
@@ -17,6 +19,8 @@ pub struct SubdivideWorld {
     triangles: Vec<Triangle>,
     edge_endpoints: Option<(Vec3, Vec3)>,
     result: Option<Mesh>,
+    first_mesh: Option<Mesh>,
+    second_mesh: Option<Mesh>,
     callback_invocations: Option<Invocations>,
 }
 
@@ -65,6 +69,21 @@ fn given_arbitrary_triangle_vertices(world: &mut SubdivideWorld) {
 #[given(regex = r"^a Triangle referencing indices (\d+), (\d+), (\d+)$")]
 fn given_triangle(world: &mut SubdivideWorld, a: usize, b: usize, c: usize) {
     world.triangles.push(Triangle::new(a, b, c));
+}
+
+#[given("a Mesh with an edge whose midpoint is the origin")]
+fn given_antipodal_edge_vertices(world: &mut SubdivideWorld) {
+    world.vertices = vec![
+        Vertex {
+            position: Vec3::new(1.0, 0.0, 0.0),
+        },
+        Vertex {
+            position: Vec3::new(-1.0, 0.0, 0.0),
+        },
+        Vertex {
+            position: Vec3::new(0.0, 1.0, 0.0),
+        },
+    ];
 }
 
 #[given("the two vertices of the first triangle's first edge in the icosahedron mesh")]
@@ -141,12 +160,27 @@ fn then_no_duplicate_positions(world: &mut SubdivideWorld) {
     }
 }
 
-#[then("every vertex of the resulting Mesh has a radius less than or equal to 1.0")]
-fn then_radius_bound(world: &mut SubdivideWorld) {
+#[then(
+    regex = r"^every vertex of the resulting Mesh has a radius less than or equal to (\d+(?:\.\d+)?)$"
+)]
+fn then_radius_upper_bound(world: &mut SubdivideWorld, bound: f32) {
     for vertex in world.result().vertices() {
         assert!(
-            vertex.position.length() <= 1.0 + 1e-5,
-            "vertex radius {} exceeds 1.0",
+            vertex.position.length() <= bound + 1e-5,
+            "vertex radius {} exceeds {bound}",
+            vertex.position.length()
+        );
+    }
+}
+
+#[then(
+    regex = r"^every vertex of the resulting Mesh has a radius greater than or equal to (\d+(?:\.\d+)?)$"
+)]
+fn then_radius_lower_bound(world: &mut SubdivideWorld, bound: f32) {
+    for vertex in world.result().vertices() {
+        assert!(
+            vertex.position.length() >= bound - 1e-5,
+            "vertex radius {} is below {bound}",
             vertex.position.length()
         );
     }
@@ -178,6 +212,21 @@ fn then_callback_invocation_count(world: &mut SubdivideWorld, count: usize) {
     assert_eq!(world.invocations().len(), count);
 }
 
+#[then("no panic occurs")]
+fn then_no_panic(world: &mut SubdivideWorld) {
+    let result = world.result();
+    assert_eq!(result.triangles().len(), 4);
+    for vertex in result.vertices() {
+        assert!(
+            vertex.position.x.is_finite()
+                && vertex.position.y.is_finite()
+                && vertex.position.z.is_finite(),
+            "vertex position {:?} is not finite",
+            vertex.position
+        );
+    }
+}
+
 #[then(
     regex = r"^the update callback's (\d+)(?:st|nd|rd|th) invocation received a Mesh with (\d+) triangles$"
 )]
@@ -186,6 +235,147 @@ fn then_callback_invocation_triangles(world: &mut SubdivideWorld, index: usize, 
     let (mesh, round) = &invocations[index - 1];
     assert_eq!(mesh.triangles().len(), count);
     assert_eq!(*round, index);
+}
+
+fn radial_random_args(steps: usize, seed: u64, range: ElevationNoiseRange) -> SubdivisionArgs {
+    SubdivisionArgs::new(
+        Some(Steps::new(steps).expect("Steps::new failed")),
+        Some(SubdivisionMode::RadialRandomSplit {
+            seed: Seed::from(seed),
+            elevation_noise_range: range,
+        }),
+        None,
+    )
+}
+
+#[when(
+    regex = r"^the mesh is subdivided with (\d+) steps? using SubdivisionMode::RadialRandomSplit with seed (\d+) and the default ElevationNoiseRange$"
+)]
+fn when_subdivided_radial_default_range(world: &mut SubdivideWorld, steps: usize, seed: u64) {
+    let source = world.source_mesh();
+    let args = radial_random_args(steps, seed, ElevationNoiseRange::default());
+    world.result = Some(subdivide(&source, args).expect("subdivide() failed"));
+}
+
+#[when(
+    regex = r"^the mesh is subdivided with (\d+) steps? using SubdivisionMode::RadialRandomSplit with seed (\d+) and an ElevationNoiseRange of low (-?\d+(?:\.\d+)?) and high (-?\d+(?:\.\d+)?)$"
+)]
+fn when_subdivided_radial_explicit_range(
+    world: &mut SubdivideWorld,
+    steps: usize,
+    seed: u64,
+    low: f32,
+    high: f32,
+) {
+    let source = world.source_mesh();
+    let range = ElevationNoiseRange::new(low, high).expect("ElevationNoiseRange::new failed");
+    let args = radial_random_args(steps, seed, range);
+    world.result = Some(subdivide(&source, args).expect("subdivide() failed"));
+}
+
+#[when(
+    regex = r"^the mesh is subdivided with (\d+) steps? using SubdivisionMode::RadialRandomSplit with seed (\d+) and the default ElevationNoiseRange, producing the first Mesh$"
+)]
+fn when_subdivided_radial_default_range_first(world: &mut SubdivideWorld, steps: usize, seed: u64) {
+    let source = world.source_mesh();
+    let args = radial_random_args(steps, seed, ElevationNoiseRange::default());
+    world.first_mesh = Some(subdivide(&source, args).expect("subdivide() failed"));
+}
+
+#[when(
+    regex = r"^the same icosahedron mesh is subdivided with (\d+) steps? using SubdivisionMode::RadialRandomSplit with seed (\d+) and the default ElevationNoiseRange, producing the second Mesh$"
+)]
+fn when_subdivided_radial_default_range_second(
+    world: &mut SubdivideWorld,
+    steps: usize,
+    seed: u64,
+) {
+    let source = world.source_mesh();
+    let args = radial_random_args(steps, seed, ElevationNoiseRange::default());
+    world.second_mesh = Some(subdivide(&source, args).expect("subdivide() failed"));
+}
+
+#[when(
+    regex = r"^the mesh is subdivided with (\d+) steps? using SubdivisionMode::RadialRandomSplit with seed (\d+) and an ElevationNoiseRange of low (-?\d+(?:\.\d+)?) and high (-?\d+(?:\.\d+)?), producing the first Mesh$"
+)]
+fn when_subdivided_radial_explicit_range_first(
+    world: &mut SubdivideWorld,
+    steps: usize,
+    seed: u64,
+    low: f32,
+    high: f32,
+) {
+    let source = world.source_mesh();
+    let range = ElevationNoiseRange::new(low, high).expect("ElevationNoiseRange::new failed");
+    let args = radial_random_args(steps, seed, range);
+    world.first_mesh = Some(subdivide(&source, args).expect("subdivide() failed"));
+}
+
+#[when(
+    regex = r"^the same icosahedron mesh is subdivided with (\d+) steps? using SubdivisionMode::RadialRandomSplit with seed (\d+) and an ElevationNoiseRange of low (-?\d+(?:\.\d+)?) and high (-?\d+(?:\.\d+)?), producing the second Mesh$"
+)]
+fn when_subdivided_radial_explicit_range_second(
+    world: &mut SubdivideWorld,
+    steps: usize,
+    seed: u64,
+    low: f32,
+    high: f32,
+) {
+    let source = world.source_mesh();
+    let range = ElevationNoiseRange::new(low, high).expect("ElevationNoiseRange::new failed");
+    let args = radial_random_args(steps, seed, range);
+    world.second_mesh = Some(subdivide(&source, args).expect("subdivide() failed"));
+}
+
+#[when(
+    regex = r"^the same icosahedron mesh is subdivided with (\d+) steps? using SubdivisionMode::UniformRedSplit, producing the second Mesh$"
+)]
+fn when_subdivided_uniform_second(world: &mut SubdivideWorld, steps: usize) {
+    let source = world.source_mesh();
+    let args = SubdivisionArgs::new(
+        Some(Steps::new(steps).expect("Steps::new failed")),
+        Some(SubdivisionMode::UniformRedSplit),
+        None,
+    );
+    world.second_mesh = Some(subdivide(&source, args).expect("subdivide() failed"));
+}
+
+#[then(
+    regex = r"^the first (\d+) vertices of the resulting Mesh have the same positions as the icosahedron mesh's vertices$"
+)]
+fn then_original_vertices_unchanged(world: &mut SubdivideWorld, count: usize) {
+    let source = world
+        .icosahedron_mesh
+        .as_ref()
+        .expect("icosahedron mesh not given");
+    let result = world.result();
+    for index in 0..count {
+        assert_eq!(
+            result.vertices()[index].position,
+            source.vertices()[index].position,
+            "vertex {index} was displaced"
+        );
+    }
+}
+
+#[then("the first Mesh and the second Mesh are identical")]
+fn then_first_and_second_identical(world: &mut SubdivideWorld) {
+    let first = world.first_mesh.as_ref().expect("first Mesh not computed");
+    let second = world
+        .second_mesh
+        .as_ref()
+        .expect("second Mesh not computed");
+    assert_eq!(first, second);
+}
+
+#[then("the first Mesh and the second Mesh are not identical")]
+fn then_first_and_second_not_identical(world: &mut SubdivideWorld) {
+    let first = world.first_mesh.as_ref().expect("first Mesh not computed");
+    let second = world
+        .second_mesh
+        .as_ref()
+        .expect("second Mesh not computed");
+    assert_ne!(first, second);
 }
 
 #[tokio::main]
