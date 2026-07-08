@@ -8,7 +8,7 @@ fn exact_midpoint(a: &Vertex, b: &Vertex) -> Vertex {
     }
 }
 
-pub struct UniformRedSplit;
+pub(crate) struct UniformRedSplit;
 
 impl SubdivisionStrategy for UniformRedSplit {
     fn split_triangle(

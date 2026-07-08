@@ -3,7 +3,6 @@ pub mod app;
 pub mod buffers;
 pub mod camera;
 pub mod render;
-pub mod subdivision_stepper;
 pub mod uniforms;
 
 #[cfg(target_arch = "wasm32")]

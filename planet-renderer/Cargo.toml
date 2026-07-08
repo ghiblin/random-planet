@@ -30,10 +30,6 @@ harness = false
 name = "mesh_render_line_indices"
 harness = false
 
-[[test]]
-name = "subdivision_stepper"
-harness = false
-
 [dependencies]
 planet-core = { path = "../planet-core" }
 wasm-bindgen = "0.2.126"
