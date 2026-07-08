@@ -11,17 +11,16 @@ use winit::platform::web::WindowAttributesExtWebSys;
 use winit::window::{Window, WindowId};
 
 use planet_core::icosahedron::icosahedron;
-use planet_core::uniform_red_split::UniformRedSplit;
+use planet_core::mesh::Mesh;
+use planet_core::subdivide::subdivide;
+use planet_core::subdivision_args::SubdivisionArgs;
 
 use crate::camera::Camera;
 use crate::render::Renderer;
-use crate::subdivision_stepper::SubdivisionStepper;
 
 const ORBIT_SENSITIVITY: f32 = 0.005;
 const ZOOM_LINE_SENSITIVITY: f32 = 0.5;
 const ZOOM_PIXEL_SENSITIVITY: f32 = 0.01;
-// Temporary hardcoded value until 007-planet-presets wires up the depth slider.
-const MAX_SUBDIVISION_DEPTH: u32 = 3;
 
 pub struct App {
     window: Option<Arc<Window>>,
@@ -29,7 +28,8 @@ pub struct App {
     camera: Camera,
     dragging: bool,
     last_cursor: Option<PhysicalPosition<f64>>,
-    stepper: Option<SubdivisionStepper>,
+    frames: Vec<Mesh>,
+    current_frame: usize,
     wireframe: bool,
 }
 
@@ -41,7 +41,8 @@ impl Default for App {
             camera: Camera::default(),
             dragging: false,
             last_cursor: None,
-            stepper: None,
+            frames: Vec::new(),
+            current_frame: 0,
             wireframe: false,
         }
     }
@@ -73,9 +74,28 @@ impl ApplicationHandler for App {
                 return;
             }
         };
-        let stepper = SubdivisionStepper::new(base_mesh, MAX_SUBDIVISION_DEPTH);
-        let initial_mesh = stepper.mesh().clone();
-        self.stepper = Some(stepper);
+
+        let collected_frames = Rc::new(RefCell::new(vec![base_mesh.clone()]));
+        let frame_collector = collected_frames.clone();
+        let update_cb: Box<dyn FnMut(&Mesh, usize)> = Box::new(move |mesh, _round| {
+            frame_collector.borrow_mut().push(mesh.clone());
+        });
+        let args = SubdivisionArgs::new(None, None, Some(update_cb));
+        if let Err(error) = subdivide(&base_mesh, args) {
+            web_sys::console::error_1(&format!("failed to subdivide icosahedron: {error}").into());
+            return;
+        }
+        self.frames = match Rc::try_unwrap(collected_frames) {
+            Ok(frames) => frames.into_inner(),
+            Err(_) => {
+                web_sys::console::error_1(
+                    &"failed to collect subdivision frames: update_cb outlived subdivide".into(),
+                );
+                return;
+            }
+        };
+        self.current_frame = 0;
+        let initial_mesh = self.frames[0].clone();
 
         let renderer_slot = self.renderer.clone();
         let size_probe = window.clone();
@@ -142,23 +162,6 @@ impl ApplicationHandler for App {
             WindowEvent::KeyboardInput { event, .. } => {
                 if event.state == ElementState::Pressed && !event.repeat {
                     match event.physical_key {
-                        PhysicalKey::Code(KeyCode::Space) => {
-                            let advanced = self
-                                .stepper
-                                .as_mut()
-                                .map(|stepper| stepper.step(&mut UniformRedSplit).unwrap_or(false))
-                                .unwrap_or(false);
-                            if advanced {
-                                if let (Some(stepper), Some(renderer)) =
-                                    (&self.stepper, self.renderer.borrow_mut().as_mut())
-                                {
-                                    renderer.set_mesh(stepper.mesh());
-                                }
-                                if let Some(window) = &self.window {
-                                    window.request_redraw();
-                                }
-                            }
-                        }
                         PhysicalKey::Code(KeyCode::KeyW) => {
                             self.wireframe = !self.wireframe;
                         }
@@ -167,6 +170,12 @@ impl ApplicationHandler for App {
                 }
             }
             WindowEvent::RedrawRequested => {
+                if self.current_frame + 1 < self.frames.len() {
+                    self.current_frame += 1;
+                    if let Some(renderer) = self.renderer.borrow_mut().as_mut() {
+                        renderer.set_mesh(&self.frames[self.current_frame]);
+                    }
+                }
                 if let Some(renderer) = self.renderer.borrow().as_ref() {
                     renderer.render(&self.camera, self.wireframe);
                 }

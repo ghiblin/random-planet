@@ -1,9 +1,15 @@
 use cucumber::{World as _, given, then, when};
 use planet_core::icosahedron::icosahedron;
 use planet_core::mesh::{Mesh, Triangle, Vertex};
+use planet_core::steps::Steps;
 use planet_core::subdivide::subdivide;
-use planet_core::uniform_red_split::UniformRedSplit;
+use planet_core::subdivision_args::{SubdivisionArgs, UpdateCallback};
+use planet_core::subdivision_mode::SubdivisionMode;
 use planet_core::vec3::Vec3;
+use std::cell::RefCell;
+use std::rc::Rc;
+
+type Invocations = Rc<RefCell<Vec<(Mesh, usize)>>>;
 
 #[derive(Debug, Default, cucumber::World)]
 pub struct SubdivideWorld {
@@ -12,6 +18,7 @@ pub struct SubdivideWorld {
     triangles: Vec<Triangle>,
     edge_endpoints: Option<(Vec3, Vec3)>,
     result: Option<Mesh>,
+    callback_invocations: Option<Invocations>,
 }
 
 impl SubdivideWorld {
@@ -26,6 +33,13 @@ impl SubdivideWorld {
 
     fn result(&self) -> &Mesh {
         self.result.as_ref().expect("subdivide result not computed")
+    }
+
+    fn invocations(&self) -> std::cell::Ref<'_, Vec<(Mesh, usize)>> {
+        self.callback_invocations
+            .as_ref()
+            .expect("no recording update callback given")
+            .borrow()
     }
 }
 
@@ -66,11 +80,43 @@ fn given_first_edge_endpoints(world: &mut SubdivideWorld) {
     world.edge_endpoints = Some((a, b));
 }
 
-#[when(regex = r"^the mesh is subdivided to depth (\d+) using the uniform red-split strategy$")]
-fn when_subdivided(world: &mut SubdivideWorld, depth: u32) {
+#[when(
+    regex = r"^the mesh is subdivided with (\d+) steps? using SubdivisionMode::UniformRedSplit$"
+)]
+fn when_subdivided(world: &mut SubdivideWorld, steps: usize) {
     let source = world.source_mesh();
-    world.result =
-        Some(subdivide(&source, depth, &mut UniformRedSplit).expect("subdivide() failed"));
+    let args = SubdivisionArgs::new(
+        Some(Steps::new(steps).expect("Steps::new failed")),
+        Some(SubdivisionMode::UniformRedSplit),
+        None,
+    );
+    world.result = Some(subdivide(&source, args).expect("subdivide() failed"));
+}
+
+#[when("the mesh is subdivided with default SubdivisionArgs")]
+fn when_subdivided_default(world: &mut SubdivideWorld) {
+    let source = world.source_mesh();
+    let args = SubdivisionArgs::new(None, None, None);
+    world.result = Some(subdivide(&source, args).expect("subdivide() failed"));
+}
+
+#[when(
+    regex = r"^the mesh is subdivided with (\d+) steps? using SubdivisionMode::UniformRedSplit and a recording update callback$"
+)]
+fn when_subdivided_with_callback(world: &mut SubdivideWorld, steps: usize) {
+    let source = world.source_mesh();
+    let invocations = Rc::new(RefCell::new(Vec::new()));
+    let recorder = invocations.clone();
+    let update_cb: UpdateCallback = Box::new(move |mesh, round| {
+        recorder.borrow_mut().push((mesh.clone(), round));
+    });
+    world.callback_invocations = Some(invocations);
+    let args = SubdivisionArgs::new(
+        Some(Steps::new(steps).expect("Steps::new failed")),
+        Some(SubdivisionMode::UniformRedSplit),
+        Some(update_cb),
+    );
+    world.result = Some(subdivide(&source, args).expect("subdivide() failed"));
 }
 
 #[then(regex = r"^the resulting Mesh has (\d+) triangles$")]
@@ -126,6 +172,21 @@ fn then_identical_to_icosahedron(world: &mut SubdivideWorld) {
         .as_ref()
         .expect("icosahedron mesh not given");
     assert_eq!(world.result(), source);
+}
+
+#[then(regex = r"^the update callback was invoked (\d+) times$")]
+fn then_callback_invocation_count(world: &mut SubdivideWorld, count: usize) {
+    assert_eq!(world.invocations().len(), count);
+}
+
+#[then(
+    regex = r"^the update callback's (\d+)(?:st|nd|rd|th) invocation received a Mesh with (\d+) triangles$"
+)]
+fn then_callback_invocation_triangles(world: &mut SubdivideWorld, index: usize, count: usize) {
+    let invocations = world.invocations();
+    let (mesh, round) = &invocations[index - 1];
+    assert_eq!(mesh.triangles().len(), count);
+    assert_eq!(*round, index);
 }
 
 #[tokio::main]

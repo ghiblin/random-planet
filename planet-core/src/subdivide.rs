@@ -1,7 +1,8 @@
 use crate::edge::EdgeCache;
 use crate::mesh::{Mesh, MeshError, Triangle, Vertex};
+use crate::subdivision_args::SubdivisionArgs;
 
-pub trait SubdivisionStrategy {
+pub(crate) trait SubdivisionStrategy {
     fn split_triangle(
         &mut self,
         vertices: &mut Vec<Vertex>,
@@ -20,14 +21,14 @@ fn split_round(mesh: &Mesh, strategy: &mut dyn SubdivisionStrategy) -> Result<Me
     Mesh::new(vertices, triangles)
 }
 
-pub fn subdivide(
-    mesh: &Mesh,
-    depth: u32,
-    strategy: &mut dyn SubdivisionStrategy,
-) -> Result<Mesh, MeshError> {
+pub fn subdivide(mesh: &Mesh, mut args: SubdivisionArgs) -> Result<Mesh, MeshError> {
+    let mut strategy = args.mode.strategy();
     let mut current = mesh.clone();
-    for _ in 0..depth {
-        current = split_round(&current, strategy)?;
+    for step in 1..=args.steps.value() {
+        current = split_round(&current, strategy.as_mut())?;
+        if let Some(update_cb) = args.update_cb.as_mut() {
+            update_cb(&current, step);
+        }
     }
     Ok(current)
 }

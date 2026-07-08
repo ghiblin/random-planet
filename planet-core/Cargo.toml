@@ -19,6 +19,14 @@ harness = false
 name = "subdivide"
 harness = false
 
+[[test]]
+name = "steps"
+harness = false
+
+[[test]]
+name = "subdivision_args"
+harness = false
+
 [dependencies]
 rand = "0.10.2"
 rand_pcg = "0.10.2"
