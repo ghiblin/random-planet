@@ -1,7 +1,7 @@
 use cucumber::{World as _, given, then, when};
-use planet_core::steps::Steps;
-use planet_core::subdivision_args::SubdivisionArgs;
-use planet_core::subdivision_mode::SubdivisionMode;
+use planet_core::subdivision::steps::Steps;
+use planet_core::subdivision::subdivision_args::SubdivisionArgs;
+use planet_core::subdivision::subdivision_mode::SubdivisionMode;
 
 #[derive(Debug, Default, cucumber::World)]
 pub struct SubdivisionArgsWorld {

@@ -1,5 +1,5 @@
-use crate::subdivide::SubdivisionStrategy;
-use crate::uniform_red_split::UniformRedSplit;
+use super::subdivide::SubdivisionStrategy;
+use super::uniform_red_split::UniformRedSplit;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum SubdivisionMode {

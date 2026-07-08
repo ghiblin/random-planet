@@ -1,9 +1,7 @@
 #[cfg(target_arch = "wasm32")]
 pub mod app;
-pub mod buffers;
-pub mod camera;
-pub mod render;
-pub mod uniforms;
+pub mod gpu;
+pub mod scene;
 
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen::prelude::wasm_bindgen(start)]

@@ -1,6 +1,6 @@
-use crate::edge::EdgeCache;
-use crate::mesh::{Mesh, MeshError, Triangle, Vertex};
-use crate::subdivision_args::SubdivisionArgs;
+use super::edge::EdgeCache;
+use super::subdivision_args::SubdivisionArgs;
+use crate::geometry::mesh::{Mesh, MeshError, Triangle, Vertex};
 
 pub(crate) trait SubdivisionStrategy {
     fn split_triangle(

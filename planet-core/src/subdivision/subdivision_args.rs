@@ -1,6 +1,6 @@
-use crate::mesh::Mesh;
-use crate::steps::Steps;
-use crate::subdivision_mode::SubdivisionMode;
+use super::steps::Steps;
+use super::subdivision_mode::SubdivisionMode;
+use crate::geometry::mesh::Mesh;
 
 pub type UpdateCallback = Box<dyn FnMut(&Mesh, usize)>;
 

@@ -8,32 +8,38 @@
 
 ## Module structure
 
-`planet-core` has a single aggregate root (`Planet`), unlike a multi-aggregate domain — so it does not use an `entities/value_objects/ports` split per aggregate. Instead, one file per type, flat under `src/`:
+Both crates organize `src/` by concern, not as a flat file list: every module lives
+under a concern subdirectory, declared via a sibling `<concern>.rs` file (Rust 2024
+module style — no `mod.rs`). The only files allowed directly under `src/` are
+`lib.rs` (both crates) and `app.rs` (`planet-renderer`'s composition root — wasm-bindgen
+entry point + winit event loop, wiring only). This is a documentation rule, enforced
+at `planet-pr-validate` review time — the same way every other convention in this
+file (naming, one-type-per-file) is enforced — not by an automated test.
 
-- `vec3.rs` — `Vec3`
-- `mesh.rs` — `Vertex`, `Triangle`, `Mesh`
-- `icosahedron.rs` — base icosahedron construction
-- `edge.rs` — `EdgeKey`, `EdgeCache`, edge split-decision logic (length threshold + Gaussian split point)
-- `subdivide.rs` — red-green recursive subdivision
-- `color.rs` — `ColorGradient`
-- `preset.rs` — `Preset`, `PresetParams`
-- `ocean.rs` — sea-level percentile calculation + geometry flattening
-- `planet.rs` — `Planet` (aggregate root, `Planet::generate`)
-- `lib.rs` — `pub mod` declarations only, no logic
+`planet-core`'s concerns:
+- `geometry/` — `vec3.rs` (`Vec3`), `mesh.rs` (`Vertex`, `Triangle`, `Mesh`, `MeshError`):
+  spatial value types, no algorithm; plus a nested `primitives/` sub-concern
+  (`icosahedron.rs`, `cube.rs`, both `pub(crate)` — exposed publicly only via
+  `Mesh::icosahedron()` / `Mesh::cube()`, never directly) for mesh-construction
+  functions built entirely from `geometry`'s own types
+- `subdivision/` — `edge.rs` (`EdgeKey`, `EdgeCache`, `pub(crate)`), `steps.rs`
+  (`Steps`, `StepsError`), `subdivision_mode.rs` (`SubdivisionMode`),
+  `subdivision_args.rs` (`SubdivisionArgs`), `subdivide.rs` (`SubdivisionStrategy`
+  `pub(crate)`, `subdivide`), `uniform_red_split.rs` (`UniformRedSplit`, `pub(crate)`):
+  the recursive subdivision algorithm and its public configuration facade
 
-`planet-renderer` splits by testability, not by aggregate:
+`planet-renderer`'s concerns:
+- `scene/` — `camera.rs` (`Camera`): orbit/zoom input math
+- `gpu/` — `buffers.rs`, `uniforms.rs`, `render.rs`, `shader.wgsl`: everything
+  wgpu-facing — mesh/preset-to-GPU-data mapping and the actual device/pipeline/draw calls
+- `app.rs` (top-level) — winit event loop, wasm-bindgen entry point, HTML control wiring
 
-- `camera.rs`, `buffers.rs`, `uniforms.rs` — pure logic, no GPU calls, natively testable
-- `render.rs` — wgpu device/pipeline/draw calls (thin, not BDD-tested)
-- `app.rs` — winit event loop, wasm-bindgen entry point, HTML control wiring (thin, `#[cfg(target_arch = "wasm32")]`-gated where browser-only, not BDD-tested)
-- `lib.rs` / `main.rs` — wiring only, no logic
+Adding a new type: put it in the file for its existing concern if one fits; only
+create a new concern subdirectory (and a `rules.md` entry for it, in this same list)
+when no existing concern fits — never add a bare `.rs` file directly under `src/` as
+a shortcut.
 
-One type per file, everywhere.
-
-When each crate is scaffolded (spec `001-cube-render`), split this into `planet-core/RULES.md` and `planet-renderer/RULES.md` with an allow/blocklist, following the pattern below:
-
-- `planet-core` allowed: pure computation, `rand`/`rand_pcg`. Not allowed: `wgpu`, `winit`, `wasm-bindgen`, `web-sys`, `std::fs`, `std::net`, any dependency on `planet-renderer`
-- `planet-renderer` allowed: `wgpu`, `winit`, `wasm-bindgen`, `web-sys`, depends on `planet-core`. Not allowed: domain/generation logic that belongs in `planet-core` (e.g. no subdivision math inline in render code)
+One type per file, everywhere (unchanged).
 
 ## Error handling
 - No `unwrap()`/`panic!()` in production code — permitted only in tests and examples

@@ -1,4 +1,4 @@
-use crate::mesh::Vertex;
+use crate::geometry::mesh::Vertex;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

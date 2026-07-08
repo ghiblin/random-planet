@@ -1,5 +1,5 @@
 use cucumber::{World as _, given, then, when};
-use planet_renderer::camera::Camera;
+use planet_renderer::scene::camera::Camera;
 
 #[derive(Debug, Default, cucumber::World)]
 pub struct CameraWorld {
