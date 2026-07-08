@@ -65,6 +65,11 @@ Feature: Recursive subdivision via the SubdivisionMode facade
     When the mesh is subdivided with 1 step using SubdivisionMode::RadialRandomSplit with seed 7 and the default ElevationNoiseRange
     Then the resulting Mesh has 80 triangles
 
+  Scenario: Subdividing the icosahedron mesh by 2 steps using SubdivisionMode::RadialRandomSplit grows the triangle count geometrically
+    Given an icosahedron mesh
+    When the mesh is subdivided with 2 steps using SubdivisionMode::RadialRandomSplit with seed 7 and the default ElevationNoiseRange
+    Then the resulting Mesh has 320 triangles
+
   Scenario: Subdividing the icosahedron mesh with SubdivisionMode::RadialRandomSplit does not duplicate vertices at shared edges
     Given an icosahedron mesh
     When the mesh is subdivided with 1 step using SubdivisionMode::RadialRandomSplit with seed 7 and the default ElevationNoiseRange
@@ -108,3 +113,9 @@ Feature: Recursive subdivision via the SubdivisionMode facade
     When the mesh is subdivided with 1 step using SubdivisionMode::RadialRandomSplit with seed 7 and an ElevationNoiseRange of low 0.0 and high 0.0, producing the first Mesh
     And the same icosahedron mesh is subdivided with 1 step using SubdivisionMode::UniformRedSplit, producing the second Mesh
     Then the first Mesh and the second Mesh are identical
+
+  Scenario: SubdivisionMode::RadialRandomSplit never panics when an edge's midpoint is exactly the origin
+    Given a Mesh with an edge whose midpoint is the origin
+    And a Triangle referencing indices 0, 1, 2
+    When the mesh is subdivided with 1 step using SubdivisionMode::RadialRandomSplit with seed 7 and the default ElevationNoiseRange
+    Then no panic occurs

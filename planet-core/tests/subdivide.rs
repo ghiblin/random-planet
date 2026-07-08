@@ -71,6 +71,21 @@ fn given_triangle(world: &mut SubdivideWorld, a: usize, b: usize, c: usize) {
     world.triangles.push(Triangle::new(a, b, c));
 }
 
+#[given("a Mesh with an edge whose midpoint is the origin")]
+fn given_antipodal_edge_vertices(world: &mut SubdivideWorld) {
+    world.vertices = vec![
+        Vertex {
+            position: Vec3::new(1.0, 0.0, 0.0),
+        },
+        Vertex {
+            position: Vec3::new(-1.0, 0.0, 0.0),
+        },
+        Vertex {
+            position: Vec3::new(0.0, 1.0, 0.0),
+        },
+    ];
+}
+
 #[given("the two vertices of the first triangle's first edge in the icosahedron mesh")]
 fn given_first_edge_endpoints(world: &mut SubdivideWorld) {
     let mesh = world
@@ -195,6 +210,21 @@ fn then_identical_to_icosahedron(world: &mut SubdivideWorld) {
 #[then(regex = r"^the update callback was invoked (\d+) times$")]
 fn then_callback_invocation_count(world: &mut SubdivideWorld, count: usize) {
     assert_eq!(world.invocations().len(), count);
+}
+
+#[then("no panic occurs")]
+fn then_no_panic(world: &mut SubdivideWorld) {
+    let result = world.result();
+    assert_eq!(result.triangles().len(), 4);
+    for vertex in result.vertices() {
+        assert!(
+            vertex.position.x.is_finite()
+                && vertex.position.y.is_finite()
+                && vertex.position.z.is_finite(),
+            "vertex position {:?} is not finite",
+            vertex.position
+        );
+    }
 }
 
 #[then(
