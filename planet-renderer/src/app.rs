@@ -15,6 +15,7 @@ use planet_core::processor::vertex_scramble::scramble_vertices;
 use planet_core::processor::vertex_scramble_range::VertexScrambleRange;
 use planet_core::subdivision::elevation_noise_range::ElevationNoiseRange;
 use planet_core::subdivision::min_edge_length::MinEdgeLength;
+use planet_core::subdivision::normal_noise_range::NormalNoiseRange;
 use planet_core::subdivision::seed::Seed;
 use planet_core::subdivision::split_point_variance::SplitPointVariance;
 use planet_core::subdivision::subdivide::subdivide;
@@ -104,6 +105,7 @@ impl ApplicationHandler for App {
             Some(SubdivisionMode::RedGreenSplit {
                 seed: Seed::from(DEMO_SEED),
                 elevation_noise_range: ElevationNoiseRange::default(),
+                normal_noise_range: NormalNoiseRange::default(),
                 min_edge_length: MinEdgeLength::default(),
                 split_point_variance: SplitPointVariance::default(),
             }),

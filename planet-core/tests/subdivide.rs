@@ -3,6 +3,7 @@ use planet_core::geometry::mesh::{Mesh, Triangle, Vertex};
 use planet_core::geometry::vec3::Vec3;
 use planet_core::subdivision::elevation_noise_range::ElevationNoiseRange;
 use planet_core::subdivision::min_edge_length::MinEdgeLength;
+use planet_core::subdivision::normal_noise_range::NormalNoiseRange;
 use planet_core::subdivision::seed::Seed;
 use planet_core::subdivision::split_point_variance::SplitPointVariance;
 use planet_core::subdivision::steps::Steps;
@@ -239,30 +240,41 @@ fn then_callback_invocation_triangles(world: &mut SubdivideWorld, index: usize, 
     assert_eq!(*round, index);
 }
 
-fn radial_random_args(steps: usize, seed: u64, range: ElevationNoiseRange) -> SubdivisionArgs {
+fn radial_random_args(
+    steps: usize,
+    seed: u64,
+    elevation_noise_range: ElevationNoiseRange,
+    normal_noise_range: NormalNoiseRange,
+) -> SubdivisionArgs {
     SubdivisionArgs::new(
         Some(Steps::new(steps).expect("Steps::new failed")),
         Some(SubdivisionMode::RadialRandomSplit {
             seed: Seed::from(seed),
-            elevation_noise_range: range,
+            elevation_noise_range,
+            normal_noise_range,
         }),
         None,
     )
 }
 
 #[when(
-    regex = r"^the mesh is subdivided with (\d+) steps? using SubdivisionMode::RadialRandomSplit with seed (\d+) and the default ElevationNoiseRange$"
+    regex = r"^the mesh is subdivided with (\d+) steps? using SubdivisionMode::RadialRandomSplit with seed (\d+), the default ElevationNoiseRange, and the default NormalNoiseRange$"
 )]
-fn when_subdivided_radial_default_range(world: &mut SubdivideWorld, steps: usize, seed: u64) {
+fn when_subdivided_radial_default_default(world: &mut SubdivideWorld, steps: usize, seed: u64) {
     let source = world.source_mesh();
-    let args = radial_random_args(steps, seed, ElevationNoiseRange::default());
+    let args = radial_random_args(
+        steps,
+        seed,
+        ElevationNoiseRange::default(),
+        NormalNoiseRange::default(),
+    );
     world.result = Some(subdivide(&source, args).expect("subdivide() failed"));
 }
 
 #[when(
-    regex = r"^the mesh is subdivided with (\d+) steps? using SubdivisionMode::RadialRandomSplit with seed (\d+) and an ElevationNoiseRange of low (-?\d+(?:\.\d+)?) and high (-?\d+(?:\.\d+)?)$"
+    regex = r"^the mesh is subdivided with (\d+) steps? using SubdivisionMode::RadialRandomSplit with seed (\d+), an ElevationNoiseRange of low (-?\d+(?:\.\d+)?) and high (-?\d+(?:\.\d+)?), and the default NormalNoiseRange$"
 )]
-fn when_subdivided_radial_explicit_range(
+fn when_subdivided_radial_explicit_default(
     world: &mut SubdivideWorld,
     steps: usize,
     seed: u64,
@@ -270,37 +282,79 @@ fn when_subdivided_radial_explicit_range(
     high: f32,
 ) {
     let source = world.source_mesh();
-    let range = ElevationNoiseRange::new(low, high).expect("ElevationNoiseRange::new failed");
-    let args = radial_random_args(steps, seed, range);
+    let elevation_noise_range =
+        ElevationNoiseRange::new(low, high).expect("ElevationNoiseRange::new failed");
+    let args = radial_random_args(
+        steps,
+        seed,
+        elevation_noise_range,
+        NormalNoiseRange::default(),
+    );
     world.result = Some(subdivide(&source, args).expect("subdivide() failed"));
 }
 
 #[when(
-    regex = r"^the mesh is subdivided with (\d+) steps? using SubdivisionMode::RadialRandomSplit with seed (\d+) and the default ElevationNoiseRange, producing the first Mesh$"
+    regex = r"^the mesh is subdivided with (\d+) steps? using SubdivisionMode::RadialRandomSplit with seed (\d+), an ElevationNoiseRange of low (-?\d+(?:\.\d+)?) and high (-?\d+(?:\.\d+)?), and a NormalNoiseRange of low (-?\d+(?:\.\d+)?) and high (-?\d+(?:\.\d+)?)$"
 )]
-fn when_subdivided_radial_default_range_first(world: &mut SubdivideWorld, steps: usize, seed: u64) {
+#[allow(clippy::too_many_arguments)]
+fn when_subdivided_radial_explicit_explicit(
+    world: &mut SubdivideWorld,
+    steps: usize,
+    seed: u64,
+    elevation_low: f32,
+    elevation_high: f32,
+    normal_low: f32,
+    normal_high: f32,
+) {
     let source = world.source_mesh();
-    let args = radial_random_args(steps, seed, ElevationNoiseRange::default());
-    world.first_mesh = Some(subdivide(&source, args).expect("subdivide() failed"));
+    let elevation_noise_range = ElevationNoiseRange::new(elevation_low, elevation_high)
+        .expect("ElevationNoiseRange::new failed");
+    let normal_noise_range =
+        NormalNoiseRange::new(normal_low, normal_high).expect("NormalNoiseRange::new failed");
+    let args = radial_random_args(steps, seed, elevation_noise_range, normal_noise_range);
+    world.result = Some(subdivide(&source, args).expect("subdivide() failed"));
 }
 
 #[when(
-    regex = r"^the same icosahedron mesh is subdivided with (\d+) steps? using SubdivisionMode::RadialRandomSplit with seed (\d+) and the default ElevationNoiseRange, producing the second Mesh$"
+    regex = r"^the mesh is subdivided with (\d+) steps? using SubdivisionMode::RadialRandomSplit with seed (\d+), the default ElevationNoiseRange, and the default NormalNoiseRange, producing the first Mesh$"
 )]
-fn when_subdivided_radial_default_range_second(
+fn when_subdivided_radial_default_default_first(
     world: &mut SubdivideWorld,
     steps: usize,
     seed: u64,
 ) {
     let source = world.source_mesh();
-    let args = radial_random_args(steps, seed, ElevationNoiseRange::default());
+    let args = radial_random_args(
+        steps,
+        seed,
+        ElevationNoiseRange::default(),
+        NormalNoiseRange::default(),
+    );
+    world.first_mesh = Some(subdivide(&source, args).expect("subdivide() failed"));
+}
+
+#[when(
+    regex = r"^the same icosahedron mesh is subdivided with (\d+) steps? using SubdivisionMode::RadialRandomSplit with seed (\d+), the default ElevationNoiseRange, and the default NormalNoiseRange, producing the second Mesh$"
+)]
+fn when_subdivided_radial_default_default_second(
+    world: &mut SubdivideWorld,
+    steps: usize,
+    seed: u64,
+) {
+    let source = world.source_mesh();
+    let args = radial_random_args(
+        steps,
+        seed,
+        ElevationNoiseRange::default(),
+        NormalNoiseRange::default(),
+    );
     world.second_mesh = Some(subdivide(&source, args).expect("subdivide() failed"));
 }
 
 #[when(
-    regex = r"^the mesh is subdivided with (\d+) steps? using SubdivisionMode::RadialRandomSplit with seed (\d+) and an ElevationNoiseRange of low (-?\d+(?:\.\d+)?) and high (-?\d+(?:\.\d+)?), producing the first Mesh$"
+    regex = r"^the mesh is subdivided with (\d+) steps? using SubdivisionMode::RadialRandomSplit with seed (\d+), an ElevationNoiseRange of low (-?\d+(?:\.\d+)?) and high (-?\d+(?:\.\d+)?), and the default NormalNoiseRange, producing the first Mesh$"
 )]
-fn when_subdivided_radial_explicit_range_first(
+fn when_subdivided_radial_explicit_default_first(
     world: &mut SubdivideWorld,
     steps: usize,
     seed: u64,
@@ -308,15 +362,21 @@ fn when_subdivided_radial_explicit_range_first(
     high: f32,
 ) {
     let source = world.source_mesh();
-    let range = ElevationNoiseRange::new(low, high).expect("ElevationNoiseRange::new failed");
-    let args = radial_random_args(steps, seed, range);
+    let elevation_noise_range =
+        ElevationNoiseRange::new(low, high).expect("ElevationNoiseRange::new failed");
+    let args = radial_random_args(
+        steps,
+        seed,
+        elevation_noise_range,
+        NormalNoiseRange::default(),
+    );
     world.first_mesh = Some(subdivide(&source, args).expect("subdivide() failed"));
 }
 
 #[when(
-    regex = r"^the same icosahedron mesh is subdivided with (\d+) steps? using SubdivisionMode::RadialRandomSplit with seed (\d+) and an ElevationNoiseRange of low (-?\d+(?:\.\d+)?) and high (-?\d+(?:\.\d+)?), producing the second Mesh$"
+    regex = r"^the same icosahedron mesh is subdivided with (\d+) steps? using SubdivisionMode::RadialRandomSplit with seed (\d+), an ElevationNoiseRange of low (-?\d+(?:\.\d+)?) and high (-?\d+(?:\.\d+)?), and the default NormalNoiseRange, producing the second Mesh$"
 )]
-fn when_subdivided_radial_explicit_range_second(
+fn when_subdivided_radial_explicit_default_second(
     world: &mut SubdivideWorld,
     steps: usize,
     seed: u64,
@@ -324,9 +384,37 @@ fn when_subdivided_radial_explicit_range_second(
     high: f32,
 ) {
     let source = world.source_mesh();
-    let range = ElevationNoiseRange::new(low, high).expect("ElevationNoiseRange::new failed");
-    let args = radial_random_args(steps, seed, range);
+    let elevation_noise_range =
+        ElevationNoiseRange::new(low, high).expect("ElevationNoiseRange::new failed");
+    let args = radial_random_args(
+        steps,
+        seed,
+        elevation_noise_range,
+        NormalNoiseRange::default(),
+    );
     world.second_mesh = Some(subdivide(&source, args).expect("subdivide() failed"));
+}
+
+#[when(
+    regex = r"^the mesh is subdivided with (\d+) steps? using SubdivisionMode::RadialRandomSplit with seed (\d+), an ElevationNoiseRange of low (-?\d+(?:\.\d+)?) and high (-?\d+(?:\.\d+)?), and a NormalNoiseRange of low (-?\d+(?:\.\d+)?) and high (-?\d+(?:\.\d+)?), producing the first Mesh$"
+)]
+#[allow(clippy::too_many_arguments)]
+fn when_subdivided_radial_explicit_explicit_first(
+    world: &mut SubdivideWorld,
+    steps: usize,
+    seed: u64,
+    elevation_low: f32,
+    elevation_high: f32,
+    normal_low: f32,
+    normal_high: f32,
+) {
+    let source = world.source_mesh();
+    let elevation_noise_range = ElevationNoiseRange::new(elevation_low, elevation_high)
+        .expect("ElevationNoiseRange::new failed");
+    let normal_noise_range =
+        NormalNoiseRange::new(normal_low, normal_high).expect("NormalNoiseRange::new failed");
+    let args = radial_random_args(steps, seed, elevation_noise_range, normal_noise_range);
+    world.first_mesh = Some(subdivide(&source, args).expect("subdivide() failed"));
 }
 
 #[when(
@@ -380,10 +468,44 @@ fn then_first_and_second_not_identical(world: &mut SubdivideWorld) {
     assert_ne!(first, second);
 }
 
+fn coplanarity_dot(world: &SubdivideWorld) -> f32 {
+    let source = world.source_mesh();
+    let v1 = source.vertices()[1].position;
+    let v2 = source.vertices()[2].position;
+    let expected_midpoint = v1.add(v2).scale(0.5);
+    let normal = v1.cross(v2);
+    let new_vertex = world
+        .result()
+        .vertices()
+        .iter()
+        .min_by(|a, b| {
+            let da = a.position.sub(expected_midpoint).length();
+            let db = b.position.sub(expected_midpoint).length();
+            da.partial_cmp(&db).expect("non-finite vertex position")
+        })
+        .expect("resulting Mesh has no vertices")
+        .position;
+    normal.dot(new_vertex)
+}
+
+#[then("the new vertex on edge 1-2 is coplanar with vertices 1, 2, and the origin")]
+fn then_edge_1_2_coplanar(world: &mut SubdivideWorld) {
+    let dot = coplanarity_dot(world);
+    assert!(dot.abs() < 1e-4, "expected coplanar, got dot = {dot}");
+}
+
+#[then("the new vertex on edge 1-2 is not coplanar with vertices 1, 2, and the origin")]
+fn then_edge_1_2_not_coplanar(world: &mut SubdivideWorld) {
+    let dot = coplanarity_dot(world);
+    assert!(dot.abs() > 1e-4, "expected not coplanar, got dot = {dot}");
+}
+
+#[allow(clippy::too_many_arguments)]
 fn red_green_args(
     steps: usize,
     seed: u64,
-    range: ElevationNoiseRange,
+    elevation_noise_range: ElevationNoiseRange,
+    normal_noise_range: NormalNoiseRange,
     min_edge_length: f32,
     split_point_variance: f32,
 ) -> SubdivisionArgs {
@@ -391,7 +513,8 @@ fn red_green_args(
         Some(Steps::new(steps).expect("Steps::new failed")),
         Some(SubdivisionMode::RedGreenSplit {
             seed: Seed::from(seed),
-            elevation_noise_range: range,
+            elevation_noise_range,
+            normal_noise_range,
             min_edge_length: MinEdgeLength::new(min_edge_length)
                 .expect("MinEdgeLength::new failed"),
             split_point_variance: SplitPointVariance::new(split_point_variance)
@@ -402,20 +525,30 @@ fn red_green_args(
 }
 
 #[when(
-    regex = r"^the mesh is subdivided with (\d+) steps? using SubdivisionMode::RedGreenSplit with seed (\d+), the default ElevationNoiseRange, a MinEdgeLength of (-?\d+(?:\.\d+)?), and a SplitPointVariance of (-?\d+(?:\.\d+)?)$"
+    regex = r"^the mesh is subdivided with (\d+) steps? using SubdivisionMode::RedGreenSplit with seed (\d+), an ElevationNoiseRange of low (-?\d+(?:\.\d+)?) and high (-?\d+(?:\.\d+)?), a NormalNoiseRange of low (-?\d+(?:\.\d+)?) and high (-?\d+(?:\.\d+)?), a MinEdgeLength of (-?\d+(?:\.\d+)?), and a SplitPointVariance of (-?\d+(?:\.\d+)?)$"
 )]
-fn when_subdivided_red_green_default_range(
+#[allow(clippy::too_many_arguments)]
+fn when_subdivided_red_green_explicit_explicit(
     world: &mut SubdivideWorld,
     steps: usize,
     seed: u64,
+    elevation_low: f32,
+    elevation_high: f32,
+    normal_low: f32,
+    normal_high: f32,
     min_edge_length: f32,
     split_point_variance: f32,
 ) {
     let source = world.source_mesh();
+    let elevation_noise_range = ElevationNoiseRange::new(elevation_low, elevation_high)
+        .expect("ElevationNoiseRange::new failed");
+    let normal_noise_range =
+        NormalNoiseRange::new(normal_low, normal_high).expect("NormalNoiseRange::new failed");
     let args = red_green_args(
         steps,
         seed,
-        ElevationNoiseRange::default(),
+        elevation_noise_range,
+        normal_noise_range,
         min_edge_length,
         split_point_variance,
     );
@@ -423,38 +556,57 @@ fn when_subdivided_red_green_default_range(
 }
 
 #[when(
-    regex = r"^the mesh is subdivided with (\d+) steps? using SubdivisionMode::RedGreenSplit with seed (\d+), an ElevationNoiseRange of low (-?\d+(?:\.\d+)?) and high (-?\d+(?:\.\d+)?), a MinEdgeLength of (-?\d+(?:\.\d+)?), and a SplitPointVariance of (-?\d+(?:\.\d+)?)$"
+    regex = r"^the mesh is subdivided with (\d+) steps? using SubdivisionMode::RedGreenSplit with seed (\d+), an ElevationNoiseRange of low (-?\d+(?:\.\d+)?) and high (-?\d+(?:\.\d+)?), the default NormalNoiseRange, a MinEdgeLength of (-?\d+(?:\.\d+)?), and a SplitPointVariance of (-?\d+(?:\.\d+)?)$"
 )]
-fn when_subdivided_red_green_explicit_range(
+#[allow(clippy::too_many_arguments)]
+fn when_subdivided_red_green_explicit_default(
     world: &mut SubdivideWorld,
     steps: usize,
     seed: u64,
-    low: f32,
-    high: f32,
+    elevation_low: f32,
+    elevation_high: f32,
     min_edge_length: f32,
     split_point_variance: f32,
 ) {
     let source = world.source_mesh();
-    let range = ElevationNoiseRange::new(low, high).expect("ElevationNoiseRange::new failed");
-    let args = red_green_args(steps, seed, range, min_edge_length, split_point_variance);
+    let elevation_noise_range = ElevationNoiseRange::new(elevation_low, elevation_high)
+        .expect("ElevationNoiseRange::new failed");
+    let args = red_green_args(
+        steps,
+        seed,
+        elevation_noise_range,
+        NormalNoiseRange::default(),
+        min_edge_length,
+        split_point_variance,
+    );
     world.result = Some(subdivide(&source, args).expect("subdivide() failed"));
 }
 
 #[when(
-    regex = r"^the mesh is subdivided with (\d+) steps? using SubdivisionMode::RedGreenSplit with seed (\d+), the default ElevationNoiseRange, a MinEdgeLength of (-?\d+(?:\.\d+)?), and a SplitPointVariance of (-?\d+(?:\.\d+)?), producing the first Mesh$"
+    regex = r"^the mesh is subdivided with (\d+) steps? using SubdivisionMode::RedGreenSplit with seed (\d+), an ElevationNoiseRange of low (-?\d+(?:\.\d+)?) and high (-?\d+(?:\.\d+)?), a NormalNoiseRange of low (-?\d+(?:\.\d+)?) and high (-?\d+(?:\.\d+)?), a MinEdgeLength of (-?\d+(?:\.\d+)?), and a SplitPointVariance of (-?\d+(?:\.\d+)?), producing the first Mesh$"
 )]
-fn when_subdivided_red_green_default_range_first(
+#[allow(clippy::too_many_arguments)]
+fn when_subdivided_red_green_explicit_explicit_first(
     world: &mut SubdivideWorld,
     steps: usize,
     seed: u64,
+    elevation_low: f32,
+    elevation_high: f32,
+    normal_low: f32,
+    normal_high: f32,
     min_edge_length: f32,
     split_point_variance: f32,
 ) {
     let source = world.source_mesh();
+    let elevation_noise_range = ElevationNoiseRange::new(elevation_low, elevation_high)
+        .expect("ElevationNoiseRange::new failed");
+    let normal_noise_range =
+        NormalNoiseRange::new(normal_low, normal_high).expect("NormalNoiseRange::new failed");
     let args = red_green_args(
         steps,
         seed,
-        ElevationNoiseRange::default(),
+        elevation_noise_range,
+        normal_noise_range,
         min_edge_length,
         split_point_variance,
     );
@@ -462,9 +614,9 @@ fn when_subdivided_red_green_default_range_first(
 }
 
 #[when(
-    regex = r"^the same icosahedron mesh is subdivided with (\d+) steps? using SubdivisionMode::RedGreenSplit with seed (\d+), the default ElevationNoiseRange, a MinEdgeLength of (-?\d+(?:\.\d+)?), and a SplitPointVariance of (-?\d+(?:\.\d+)?), producing the second Mesh$"
+    regex = r"^the mesh is subdivided with (\d+) steps? using SubdivisionMode::RedGreenSplit with seed (\d+), the default ElevationNoiseRange, the default NormalNoiseRange, a MinEdgeLength of (-?\d+(?:\.\d+)?), and a SplitPointVariance of (-?\d+(?:\.\d+)?)$"
 )]
-fn when_subdivided_red_green_default_range_second(
+fn when_subdivided_red_green_default_default(
     world: &mut SubdivideWorld,
     steps: usize,
     seed: u64,
@@ -476,6 +628,51 @@ fn when_subdivided_red_green_default_range_second(
         steps,
         seed,
         ElevationNoiseRange::default(),
+        NormalNoiseRange::default(),
+        min_edge_length,
+        split_point_variance,
+    );
+    world.result = Some(subdivide(&source, args).expect("subdivide() failed"));
+}
+
+#[when(
+    regex = r"^the mesh is subdivided with (\d+) steps? using SubdivisionMode::RedGreenSplit with seed (\d+), the default ElevationNoiseRange, the default NormalNoiseRange, a MinEdgeLength of (-?\d+(?:\.\d+)?), and a SplitPointVariance of (-?\d+(?:\.\d+)?), producing the first Mesh$"
+)]
+fn when_subdivided_red_green_default_default_first(
+    world: &mut SubdivideWorld,
+    steps: usize,
+    seed: u64,
+    min_edge_length: f32,
+    split_point_variance: f32,
+) {
+    let source = world.source_mesh();
+    let args = red_green_args(
+        steps,
+        seed,
+        ElevationNoiseRange::default(),
+        NormalNoiseRange::default(),
+        min_edge_length,
+        split_point_variance,
+    );
+    world.first_mesh = Some(subdivide(&source, args).expect("subdivide() failed"));
+}
+
+#[when(
+    regex = r"^the same icosahedron mesh is subdivided with (\d+) steps? using SubdivisionMode::RedGreenSplit with seed (\d+), the default ElevationNoiseRange, the default NormalNoiseRange, a MinEdgeLength of (-?\d+(?:\.\d+)?), and a SplitPointVariance of (-?\d+(?:\.\d+)?), producing the second Mesh$"
+)]
+fn when_subdivided_red_green_default_default_second(
+    world: &mut SubdivideWorld,
+    steps: usize,
+    seed: u64,
+    min_edge_length: f32,
+    split_point_variance: f32,
+) {
+    let source = world.source_mesh();
+    let args = red_green_args(
+        steps,
+        seed,
+        ElevationNoiseRange::default(),
+        NormalNoiseRange::default(),
         min_edge_length,
         split_point_variance,
     );
@@ -483,21 +680,57 @@ fn when_subdivided_red_green_default_range_second(
 }
 
 #[when(
-    regex = r"^the mesh is subdivided with (\d+) steps? using SubdivisionMode::RedGreenSplit with seed (\d+), an ElevationNoiseRange of low (-?\d+(?:\.\d+)?) and high (-?\d+(?:\.\d+)?), a MinEdgeLength of (-?\d+(?:\.\d+)?), and a SplitPointVariance of (-?\d+(?:\.\d+)?), producing the first Mesh$"
+    regex = r"^the mesh is subdivided with (\d+) steps? using SubdivisionMode::RedGreenSplit with seed (\d+), the default ElevationNoiseRange, a NormalNoiseRange of low (-?\d+(?:\.\d+)?) and high (-?\d+(?:\.\d+)?), a MinEdgeLength of (-?\d+(?:\.\d+)?), and a SplitPointVariance of (-?\d+(?:\.\d+)?), producing the first Mesh$"
 )]
-fn when_subdivided_red_green_explicit_range_first(
+#[allow(clippy::too_many_arguments)]
+fn when_subdivided_red_green_default_explicit_first(
     world: &mut SubdivideWorld,
     steps: usize,
     seed: u64,
-    low: f32,
-    high: f32,
+    normal_low: f32,
+    normal_high: f32,
     min_edge_length: f32,
     split_point_variance: f32,
 ) {
     let source = world.source_mesh();
-    let range = ElevationNoiseRange::new(low, high).expect("ElevationNoiseRange::new failed");
-    let args = red_green_args(steps, seed, range, min_edge_length, split_point_variance);
+    let normal_noise_range =
+        NormalNoiseRange::new(normal_low, normal_high).expect("NormalNoiseRange::new failed");
+    let args = red_green_args(
+        steps,
+        seed,
+        ElevationNoiseRange::default(),
+        normal_noise_range,
+        min_edge_length,
+        split_point_variance,
+    );
     world.first_mesh = Some(subdivide(&source, args).expect("subdivide() failed"));
+}
+
+#[when(
+    regex = r"^the same icosahedron mesh is subdivided with (\d+) steps? using SubdivisionMode::RedGreenSplit with seed (\d+), the default ElevationNoiseRange, a NormalNoiseRange of low (-?\d+(?:\.\d+)?) and high (-?\d+(?:\.\d+)?), a MinEdgeLength of (-?\d+(?:\.\d+)?), and a SplitPointVariance of (-?\d+(?:\.\d+)?), producing the second Mesh$"
+)]
+#[allow(clippy::too_many_arguments)]
+fn when_subdivided_red_green_default_explicit_second(
+    world: &mut SubdivideWorld,
+    steps: usize,
+    seed: u64,
+    normal_low: f32,
+    normal_high: f32,
+    min_edge_length: f32,
+    split_point_variance: f32,
+) {
+    let source = world.source_mesh();
+    let normal_noise_range =
+        NormalNoiseRange::new(normal_low, normal_high).expect("NormalNoiseRange::new failed");
+    let args = red_green_args(
+        steps,
+        seed,
+        ElevationNoiseRange::default(),
+        normal_noise_range,
+        min_edge_length,
+        split_point_variance,
+    );
+    world.second_mesh = Some(subdivide(&source, args).expect("subdivide() failed"));
 }
 
 #[then("the resulting Mesh is identical to the source Mesh")]

@@ -300,3 +300,173 @@ Feature: Scrambling a mesh's existing vertices along all three axes
 16. `cargo build --target wasm32-unknown-unknown -p planet-renderer` still succeeds
 17. No new `unwrap()`/`panic!()` in production code outside tests
 18. Existing `vec3.feature`, `mesh.feature`, `icosahedron.feature`, `steps.feature`, `seed.feature`, `elevation_noise_range.feature`, `min_edge_length.feature`, `split_point_variance.feature`, `subdivision_args.feature`, `subdivide.feature`, `camera.feature`, `buffers.feature`, `uniforms.feature`, `mesh_render_vertices.feature`, `mesh_render_indices.feature`, and `mesh_render_line_indices.feature` scenarios still pass unmodified
+
+---
+
+## Addendum — Break vertex coplanarity during subdivision splits
+
+**Added to this feature at the user's request, bundled into the same branch/worktree rather than a separate feature.** Independent of the base-vertex scrambling above: today, every vertex *created during subdivision* is provably confined to a 2D plane.
+
+### Problem, proven
+
+For an edge's two endpoints `V1`, `V2`, both `RadialRandomSplit` and `RedGreenSplit` compute a new vertex as:
+1. A split point `P = (1-t)·V1 + t·V2` (a linear combination of `V1` and `V2` — for `RadialRandomSplit`, `t` is fixed at `0.5`; for `RedGreenSplit`, `t` is Gaussian-distributed).
+2. A radial displacement: `P' = P.scale(new_radius / radius)` — a scalar multiple of `P`.
+
+Both operations keep the result inside `span{V1, V2}` — the plane through the origin containing `V1` and `V2`. No choice of `t` or radial scale factor can move the result off that plane: the new vertex is always exactly coplanar with the origin and its two parent vertices. This is a real, zero-probability-of-escape geometric limitation, not a subtle statistical bias — every subdivision-created vertex, at every round, has zero out-of-plane variance.
+
+### Requirements
+
+- `planet-core` gains a new public value type `NormalNoiseRange` (`planet-core/src/subdivision/normal_noise_range.rs`), structurally and behaviorally identical to `ElevationNoiseRange` (two `f32` fields, `new(low, high)` validated via `low <= high`, `NormalNoiseRangeError::InvalidRange { low, high }`, `Default` = `(-0.05, 0.05)`) — a fresh, independent type (not a reuse of `ElevationNoiseRange`) because it represents a displacement perpendicular to the split plane, a different axis of variation from the existing radial noise
+- Both `RadialRandomSplit` and `RedGreenSplit` gain a `normal_noise_range: NormalNoiseRange` field (constructor parameter, struct field), and `SubdivisionMode::RadialRandomSplit`/`SubdivisionMode::RedGreenSplit` each gain a matching `normal_noise_range: NormalNoiseRange` variant field — both existing variants' *shapes* change (additive, non-breaking to callers that always name every field, which is this codebase's exclusive construction style)
+- After computing the existing radially-displaced point `P'` (as today), both strategies additionally: compute the split plane's unit normal `n = a.position.cross(b.position).normalized()` (`a`, `b` being the edge's two endpoints passed into the displacement closure); draw one more random offset `d` from `normal_noise_range.low()..=normal_noise_range.high()`; and return `P' + n.scale(d)` instead of `P'` alone. If `a.position.cross(b.position)` is degenerate (zero length — `V1`/`V2` colinear through the origin), `normalized()` returns `None` and no normal offset is applied (defensive fallback; this cannot arise from `Mesh::icosahedron()`'s own edges, but must be handled, mirroring the existing zero-radius guard's philosophy)
+- The normal offset is computed **after**, not before, the existing radial floor-clamp (`.max(MIN_VERTEX_RADIUS)`) — order matters: `n` is orthogonal to `P'` by construction (`n` is orthogonal to both `a.position` and `b.position`, hence to any linear combination of them, hence to `P'` since `P' ∈ span{a.position, b.position}`), so adding `n.scale(d)` can only ever *increase* the vertex's radius (Pythagorean addition of an orthogonal component never shrinks a vector's length). This means the existing `MIN_VERTEX_RADIUS` floor, already satisfied by `P'`, remains satisfied after adding the normal offset — no second floor-clamp pass is needed
+- The RNG draw order per edge becomes: (`RedGreenSplit` only) split-point `t` via `StandardNormal`, then the radial elevation delta, then the new normal-direction delta — extending, not reordering, the existing draws, so existing determinism reasoning (fixed draw order per edge, `Vec` traversal order) is unaffected
+- Upper radius bounds on the two existing "keeps every vertex radius within the configured bound" scenarios (`subdivide.feature`) widen, since the normal offset adds on top of the existing radial bound: the safe (triangle-inequality) bound becomes `1.0 + steps * (elevation_noise_range.high() + normal_noise_range.high())`, not just `1.0 + steps * elevation_noise_range.high()` as before. Concretely: the `RadialRandomSplit` scenario's bound moves from `1.2` to `1.3` (2 steps, elevation high `0.1`, normal high `0.05`); the `RedGreenSplit` scenario's bound moves from `1.1` to `1.15` (1 step, same highs). The lower bound (`0.05`) is unaffected — an orthogonal addition can only grow a vector's length, never shrink it below what the radial floor-clamp already guaranteed
+- Every existing `subdivide.feature` scenario referencing `RadialRandomSplit` or `RedGreenSplit` gains an explicit `NormalNoiseRange` clause in its `When` step text, per `rules.md`'s "reference a fixture by how it was obtained, never bare" / explicit-parameter convention already used for every other knob in this suite:
+  - Scenarios not specifically testing displacement magnitude (triangle/vertex counts, crack-freedom, determinism-equality, "never displaces original vertices", "never panics") get `the default NormalNoiseRange` appended — the exact value doesn't affect what they assert
+  - The two "behaves like `UniformRedSplit`" equivalence scenarios, and every `RedGreenSplit` scenario that already zeroes `ElevationNoiseRange` to isolate pure topology (red/green/leaf triangle-count scenarios, the "no vertex at exact midpoint" scenario), get an explicit `a NormalNoiseRange of low 0.0 and high 0.0` instead of the default — the nonzero default would otherwise break these scenarios' exact-equality assertions
+  - The two radius-bound scenarios get `the default NormalNoiseRange` (nonzero) with their bounds updated per above
+  - "Subdivision naturally stops growing..." (`RedGreenSplit`, `MinEdgeLength: 0.35`) also needs an explicit `a NormalNoiseRange of low 0.0 and high 0.0`, discovered empirically, not from static reasoning alone: the normal offset increases some vertex-to-vertex distances (an orthogonal addition never shrinks a distance), and at the default `NormalNoiseRange`, a handful of edges that previously converged below the `0.35` threshold by round 2 no longer do, so round 3 (with the default, nonzero normal range) actually produces 326 triangles against round 2's 320 — breaking this scenario's exact-equality assertion. `ElevationNoiseRange` stays at its default here; only `NormalNoiseRange` needs zeroing, confirmed by re-running both rounds with only the normal range zeroed (restores 320/320)
+- `planet-renderer/src/app.rs`'s one `SubdivisionMode::RedGreenSplit` construction gains `normal_noise_range: NormalNoiseRange::default()`
+- `rules.md`'s `subdivision/` concern-file list gains `normal_noise_range.rs` (`NormalNoiseRange`, `NormalNoiseRangeError`)
+
+Out of scope:
+- Any change to `Vec3` — `cross`, `dot`, `normalized` already exist and are sufficient (no new geometry methods needed)
+- A separate normal-noise-range for `RadialRandomSplit` vs. `RedGreenSplit`, or per-preset tuning — one shared `NormalNoiseRange` type, one value per `SubdivisionMode` variant, exactly mirroring how `elevation_noise_range` is already handled
+- Reprojecting or otherwise "fixing up" a vertex's radius after adding the normal offset beyond the existing floor clamp — the orthogonal-addition property above makes this unnecessary
+- Any change to `UniformRedSplit`, `min_edge_length.rs`, `split_point_variance.rs`, `EdgeCache`, or `subdivide.rs`'s loop — the fix is entirely inside the two strategies' displacement closures
+
+### Domain model involved
+
+**`planet-core/src/subdivision/normal_noise_range.rs` (new)** — byte-for-byte the same shape as `elevation_noise_range.rs`, renamed:
+```rust
+const DEFAULT_NORMAL_NOISE_LOW: f32 = -0.05;
+const DEFAULT_NORMAL_NOISE_HIGH: f32 = 0.05;
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct NormalNoiseRange { low: f32, high: f32 }
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum NormalNoiseRangeError { InvalidRange { low: f32, high: f32 } }
+
+impl NormalNoiseRange {
+    pub fn new(low: f32, high: f32) -> Result<NormalNoiseRange, NormalNoiseRangeError> {
+        if low <= high { Ok(NormalNoiseRange { low, high }) }
+        else { Err(NormalNoiseRangeError::InvalidRange { low, high }) }
+    }
+    pub fn low(&self) -> f32 { self.low }
+    pub fn high(&self) -> f32 { self.high }
+}
+
+impl Default for NormalNoiseRange {
+    fn default() -> Self {
+        NormalNoiseRange { low: DEFAULT_NORMAL_NOISE_LOW, high: DEFAULT_NORMAL_NOISE_HIGH }
+    }
+}
+```
+
+**`planet-core/src/subdivision/strategies/radial_random_split.rs` (updated)** — `displaced_midpoint` becomes:
+```rust
+fn displaced_midpoint(
+    a: &Vertex,
+    b: &Vertex,
+    rng: &mut Pcg32,
+    elevation_noise_range: ElevationNoiseRange,
+    normal_noise_range: NormalNoiseRange,
+) -> Vertex {
+    let midpoint = a.position.add(b.position).scale(0.5);
+    let radius = midpoint.length();
+    if radius == 0.0 {
+        return Vertex { position: midpoint };
+    }
+    let delta = rng.random_range(elevation_noise_range.low()..=elevation_noise_range.high());
+    let new_radius = (radius + delta).max(MIN_VERTEX_RADIUS);
+    let radial = midpoint.scale(new_radius / radius);
+    let normal_delta = rng.random_range(normal_noise_range.low()..=normal_noise_range.high());
+    match a.position.cross(b.position).normalized() {
+        Some(normal) => Vertex { position: radial.add(normal.scale(normal_delta)) },
+        None => Vertex { position: radial },
+    }
+}
+```
+`RadialRandomSplit` struct/`new`/`split_triangle` gain the `normal_noise_range: NormalNoiseRange` field/parameter, threaded through identically to `elevation_noise_range` today.
+
+**`planet-core/src/subdivision/strategies/red_green_split.rs` (updated)** — `displaced_split_point` gains the identical normal-offset step (same pattern as above) after its existing radial-displacement computation; `RedGreenSplit` struct/`new`/`split_triangle`/`maybe_split` gain the `normal_noise_range: NormalNoiseRange` field/parameter.
+
+**`planet-core/src/subdivision/subdivision_mode.rs` (updated)**:
+```rust
+RadialRandomSplit {
+    seed: Seed,
+    elevation_noise_range: ElevationNoiseRange,
+    normal_noise_range: NormalNoiseRange,
+},
+RedGreenSplit {
+    seed: Seed,
+    elevation_noise_range: ElevationNoiseRange,
+    normal_noise_range: NormalNoiseRange,
+    min_edge_length: MinEdgeLength,
+    split_point_variance: SplitPointVariance,
+},
+```
+
+**`planet-core/src/subdivision.rs` (updated)**: add `pub mod normal_noise_range;`
+
+**`planet-core/Cargo.toml` (updated)**: add `[[test]] name = "normal_noise_range" harness = false`
+
+**`planet-renderer/src/app.rs` (updated)**: the `SubdivisionMode::RedGreenSplit { ... }` literal gains `normal_noise_range: NormalNoiseRange::default(),`
+
+### Function/API contracts
+
+- `NormalNoiseRange::new(low, high)`: succeeds iff `low <= high`; `NormalNoiseRange::default()` has `low == -0.05`, `high == 0.05` — contract otherwise identical to `ElevationNoiseRange::new`
+- For any edge `(a, b)` split by either strategy, the resulting vertex's position, minus its purely-radial component `P'`, is parallel to `a.position.cross(b.position)` (i.e. lies along the plane's normal) — equivalently, `a.position.cross(b.position).dot(result_position)` is `0` when `normal_noise_range` is a zero-width range at `0.0`, and generically non-zero otherwise
+- Adding the normal offset never reduces a vertex's radius below what the existing `MIN_VERTEX_RADIUS` floor-clamp already produced (orthogonal-addition property, proven above) — no new floor-clamp needed
+- Both strategies remain deterministic: identical `mesh`, `seed`, `elevation_noise_range`, `normal_noise_range` (and, for `RedGreenSplit`, `min_edge_length`/`split_point_variance`) produce byte-identical output, for the same reasons already established (fixed draw order per edge)
+
+### BDD scenarios
+
+`planet-core/tests/features/normal_noise_range.feature` — identical in structure to `elevation_noise_range.feature`, renamed (4 scenarios: low<high succeeds, low==high succeeds, low>high fails, default is -0.05/0.05).
+
+`planet-core/tests/features/subdivide.feature` — every existing `RadialRandomSplit`/`RedGreenSplit` scenario's `When` text gains a `NormalNoiseRange` clause per the Requirements rule above (default, or explicit `0.0`/`0.0` for equivalence/topology-isolating scenarios); the two radius-bound scenarios' expected upper bounds change to `1.3` and `1.15` respectively. Four new scenarios are added, all built on edge **1-2**, not 0-1 — the arbitrary-triangle fixture's vertex 0 sits exactly at the origin (`(0,0,0)`), so `cross(vertices[0], vertices[1])` is itself the zero vector (degenerate), making edge 0-1 unusable for this check; edge 1-2 (`(2,0,0)` and `(0,2,1)`, `cross = (0,-2,4)`) is well-defined:
+
+```gherkin
+  Scenario: SubdivisionMode::RadialRandomSplit keeps a new vertex exactly coplanar when NormalNoiseRange is zero-width at zero
+    Given a Mesh with 3 vertices at the corners of an arbitrary triangle
+    And a Triangle referencing indices 0, 1, 2
+    When the mesh is subdivided with 1 step using SubdivisionMode::RadialRandomSplit with seed 7, an ElevationNoiseRange of low -0.1 and high 0.1, and a NormalNoiseRange of low 0.0 and high 0.0
+    Then the new vertex on edge 1-2 is coplanar with vertices 1, 2, and the origin
+
+  Scenario: SubdivisionMode::RadialRandomSplit moves a new vertex off the shared plane when NormalNoiseRange is non-zero
+    Given a Mesh with 3 vertices at the corners of an arbitrary triangle
+    And a Triangle referencing indices 0, 1, 2
+    When the mesh is subdivided with 1 step using SubdivisionMode::RadialRandomSplit with seed 7, an ElevationNoiseRange of low -0.1 and high 0.1, and a NormalNoiseRange of low 0.05 and high 0.05
+    Then the new vertex on edge 1-2 is not coplanar with vertices 1, 2, and the origin
+
+  Scenario: SubdivisionMode::RedGreenSplit keeps a new vertex exactly coplanar when NormalNoiseRange is zero-width at zero
+    Given a Mesh with 3 vertices at the corners of an arbitrary triangle
+    And a Triangle referencing indices 0, 1, 2
+    When the mesh is subdivided with 1 step using SubdivisionMode::RedGreenSplit with seed 7, an ElevationNoiseRange of low -0.1 and high 0.1, a NormalNoiseRange of low 0.0 and high 0.0, a MinEdgeLength of 2.5, and a SplitPointVariance of 0.0
+    Then the new vertex on edge 1-2 is coplanar with vertices 1, 2, and the origin
+
+  Scenario: SubdivisionMode::RedGreenSplit moves a new vertex off the shared plane when NormalNoiseRange is non-zero
+    Given a Mesh with 3 vertices at the corners of an arbitrary triangle
+    And a Triangle referencing indices 0, 1, 2
+    When the mesh is subdivided with 1 step using SubdivisionMode::RedGreenSplit with seed 7, an ElevationNoiseRange of low -0.1 and high 0.1, a NormalNoiseRange of low 0.05 and high 0.05, a MinEdgeLength of 2.5, and a SplitPointVariance of 0.0
+    Then the new vertex on edge 1-2 is not coplanar with vertices 1, 2, and the origin
+```
+For `RadialRandomSplit`, all 3 edges always split (fixed processing order `ab`, `bc`, `ca`), so edge 1-2's new vertex is deterministically at index 4. For `RedGreenSplit`, the `MinEdgeLength: 2.5` fixture reuses "Exactly 1 edge above the threshold produces a green split with 2 non-recursable children"'s exact setup — with vertices `(0,0,0)`, `(2,0,0)`, `(0,2,1)`, only edge 1-2 [length 3] exceeds `2.5`, so exactly one new vertex is created, deterministically at index 3.
+
+### Acceptance criteria
+
+1. `NormalNoiseRange::new(low, high)` succeeds iff `low <= high`; `NormalNoiseRange::default()` has `low == -0.05`, `high == 0.05`
+2. `SubdivisionMode::RadialRandomSplit` and `SubdivisionMode::RedGreenSplit` both have a `normal_noise_range: NormalNoiseRange` field; all existing production/test construction sites of both variants are updated (no missing-field compile errors)
+3. For the `RadialRandomSplit`-with-`NormalNoiseRange`-of-`0.0`/`0.0` scenario, the new vertex on edge 1-2 has `a.position.cross(b.position).dot(result_position)` within `1e-4` of `0`
+4. For the `RadialRandomSplit`-with-`NormalNoiseRange`-of-`0.05`/`0.05` scenario, that same dot product's absolute value exceeds `1e-4`
+5. The analogous `RedGreenSplit` coplanar/non-coplanar scenarios (edge 1-2, the `MinEdgeLength: 2.5` fixture) hold the same two properties
+6. The `RadialRandomSplit` radius-bound scenario (2 steps, `ElevationNoiseRange(-0.1, 0.1)`, default `NormalNoiseRange`) has every vertex radius in `[0.05, 1.3]`
+7. The `RedGreenSplit` radius-bound scenario (1 step, `ElevationNoiseRange(-0.1, 0.1)`, default `NormalNoiseRange`, `MinEdgeLength: 0.5`, `SplitPointVariance: 0.0`) has every vertex radius in `[0.05, 1.15]`
+8. Every existing `subdivide.feature` scenario (as re-phrased) passes with its originally-asserted outcome preserved (counts, equality/inequality, determinism) — no regression in behavior, only in phrasing and the two bound numbers above
+9. `rules.md`'s `subdivision/` concern list documents `normal_noise_range.rs`
+10. `cargo test --workspace`, `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, and `cargo build --target wasm32-unknown-unknown -p planet-renderer` all pass
+11. No new `unwrap()`/`panic!()` in production code outside tests
+12. All scenarios in `normal_noise_range.feature` and the updated `subdivide.feature` pass via real `cucumber` step definitions — no undefined/stub steps
