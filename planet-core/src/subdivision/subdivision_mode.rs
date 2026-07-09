@@ -29,7 +29,7 @@ pub enum SubdivisionMode {
 impl SubdivisionMode {
     pub(crate) fn strategy(&self) -> Box<dyn SubdivisionStrategy> {
         match self {
-            SubdivisionMode::UniformRedSplit => Box::new(UniformRedSplit),
+            SubdivisionMode::UniformRedSplit => Box::new(UniformRedSplit::new()),
             SubdivisionMode::RadialRandomSplit {
                 seed,
                 elevation_noise_range,

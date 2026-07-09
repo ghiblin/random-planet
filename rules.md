@@ -34,9 +34,16 @@ file (naming, one-type-per-file) is enforced — not by an automated test.
   all `pub(crate)` — exposed publicly only via `SubdivisionMode`, never directly)
   for the concrete subdivision-algorithm implementations: the recursive subdivision
   algorithm and its public configuration facade
-- `processor/` — pre/post-processing steps that run outside the subdivision algorithm, each
-  taking an already-built `Mesh` and returning a transformed one: `vertex_scramble_range.rs`
-  (`VertexScrambleRange`, `VertexScrambleRangeError`), `vertex_scramble.rs` (`scramble_vertices`)
+- `processor/` — reusable vertex- and mesh-transformation building blocks: whole-mesh
+  pre/post-processing steps that run outside the subdivision algorithm, each taking
+  an already-built `Mesh` and returning a transformed one (`vertex_scramble_range.rs`
+  (`VertexScrambleRange`, `VertexScrambleRangeError`), `vertex_scramble.rs`
+  (`scramble_vertices`)); plus the per-vertex `VertexOperator` building blocks
+  `subdivision/strategies/` composes into a pipeline to compute each newly split
+  vertex (`vertex_operator.rs` (`VertexOperator`, `pub(crate)`), `identity.rs`
+  (`identity`, `pub(crate)`), `radial_displacement.rs` (`radial_displacement`,
+  `MIN_VERTEX_RADIUS`, `pub(crate)`), `normal_displacement.rs`
+  (`normal_displacement`, `pub(crate)`), `compose.rs` (`compose`, `pub(crate)`))
 
 `planet-renderer`'s concerns:
 - `scene/` — `camera.rs` (`Camera`): orbit/zoom input math

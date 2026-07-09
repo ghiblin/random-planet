@@ -3,6 +3,10 @@ use rand_distr::StandardNormal;
 use rand_pcg::Pcg32;
 
 use crate::geometry::mesh::{Triangle, Vertex};
+use crate::processor::compose::compose;
+use crate::processor::normal_displacement::normal_displacement;
+use crate::processor::radial_displacement::radial_displacement;
+use crate::processor::vertex_operator::VertexOperator;
 use crate::subdivision::edge::EdgeCache;
 use crate::subdivision::elevation_noise_range::ElevationNoiseRange;
 use crate::subdivision::min_edge_length::MinEdgeLength;
@@ -13,16 +17,12 @@ use crate::subdivision::subdivide::SubdivisionStrategy;
 
 pub(crate) const MIN_SPLIT_T: f32 = 0.05;
 pub(crate) const MAX_SPLIT_T: f32 = 0.95;
-const MIN_VERTEX_RADIUS: f32 = 0.05;
 
-#[allow(clippy::too_many_arguments)]
-fn displaced_split_point(
+fn gaussian_split_point(
     a: &Vertex,
     b: &Vertex,
     rng: &mut Pcg32,
     split_point_variance: SplitPointVariance,
-    elevation_noise_range: ElevationNoiseRange,
-    normal_noise_range: NormalNoiseRange,
 ) -> Vertex {
     // Equivalent to Normal::new(0.5, split_point_variance.value()).sample(rng) — see
     // rand_distr's own Distribution<F> impl for Normal, which computes exactly
@@ -31,57 +31,16 @@ fn displaced_split_point(
     // never unwrap/expect on.
     let z: f32 = rng.sample(StandardNormal);
     let t = (0.5 + split_point_variance.value() * z).clamp(MIN_SPLIT_T, MAX_SPLIT_T);
-    let point = a.position.add(b.position.sub(a.position).scale(t));
-    let radius = point.length();
-    if radius == 0.0 {
-        return Vertex { position: point };
+    Vertex {
+        position: a.position.add(b.position.sub(a.position).scale(t)),
     }
-    let delta = rng.random_range(elevation_noise_range.low()..=elevation_noise_range.high());
-    let new_radius = (radius + delta).max(MIN_VERTEX_RADIUS);
-    let radial = point.scale(new_radius / radius);
-    let normal_delta = rng.random_range(normal_noise_range.low()..=normal_noise_range.high());
-    match a.position.cross(b.position).normalized() {
-        Some(normal) => Vertex {
-            position: radial.add(normal.scale(normal_delta)),
-        },
-        None => Vertex { position: radial },
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn maybe_split(
-    a: usize,
-    b: usize,
-    vertices: &mut Vec<Vertex>,
-    edges: &mut EdgeCache,
-    rng: &mut Pcg32,
-    min_edge_length: MinEdgeLength,
-    split_point_variance: SplitPointVariance,
-    elevation_noise_range: ElevationNoiseRange,
-    normal_noise_range: NormalNoiseRange,
-) -> Option<usize> {
-    let length = vertices[b].position.sub(vertices[a].position).length();
-    if length < min_edge_length.value() {
-        return None;
-    }
-    Some(edges.get_or_insert_with(a, b, vertices, |va, vb| {
-        displaced_split_point(
-            va,
-            vb,
-            rng,
-            split_point_variance,
-            elevation_noise_range,
-            normal_noise_range,
-        )
-    }))
 }
 
 pub(crate) struct RedGreenSplit {
     rng: Pcg32,
-    elevation_noise_range: ElevationNoiseRange,
-    normal_noise_range: NormalNoiseRange,
     min_edge_length: MinEdgeLength,
     split_point_variance: SplitPointVariance,
+    pipeline: VertexOperator,
 }
 
 impl RedGreenSplit {
@@ -95,11 +54,31 @@ impl RedGreenSplit {
     ) -> RedGreenSplit {
         RedGreenSplit {
             rng: Pcg32::seed_from_u64(seed.value()),
-            elevation_noise_range,
-            normal_noise_range,
             min_edge_length,
             split_point_variance,
+            pipeline: compose(
+                radial_displacement(elevation_noise_range),
+                normal_displacement(normal_noise_range),
+            ),
         }
+    }
+
+    fn maybe_split(
+        &mut self,
+        a: usize,
+        b: usize,
+        vertices: &mut Vec<Vertex>,
+        edges: &mut EdgeCache,
+    ) -> Option<usize> {
+        let length = vertices[b].position.sub(vertices[a].position).length();
+        if length < self.min_edge_length.value() {
+            return None;
+        }
+        let split_point_variance = self.split_point_variance;
+        Some(edges.get_or_insert_with(a, b, vertices, |va, vb| {
+            let point = gaussian_split_point(va, vb, &mut self.rng, split_point_variance);
+            (self.pipeline)(&mut self.rng, va, vb, point)
+        }))
     }
 }
 
@@ -110,44 +89,9 @@ impl SubdivisionStrategy for RedGreenSplit {
         edges: &mut EdgeCache,
         triangle: Triangle,
     ) -> Vec<Triangle> {
-        let min_edge_length = self.min_edge_length;
-        let split_point_variance = self.split_point_variance;
-        let elevation_noise_range = self.elevation_noise_range;
-        let normal_noise_range = self.normal_noise_range;
-
-        let ab = maybe_split(
-            triangle.a,
-            triangle.b,
-            vertices,
-            edges,
-            &mut self.rng,
-            min_edge_length,
-            split_point_variance,
-            elevation_noise_range,
-            normal_noise_range,
-        );
-        let bc = maybe_split(
-            triangle.b,
-            triangle.c,
-            vertices,
-            edges,
-            &mut self.rng,
-            min_edge_length,
-            split_point_variance,
-            elevation_noise_range,
-            normal_noise_range,
-        );
-        let ca = maybe_split(
-            triangle.c,
-            triangle.a,
-            vertices,
-            edges,
-            &mut self.rng,
-            min_edge_length,
-            split_point_variance,
-            elevation_noise_range,
-            normal_noise_range,
-        );
+        let ab = self.maybe_split(triangle.a, triangle.b, vertices, edges);
+        let bc = self.maybe_split(triangle.b, triangle.c, vertices, edges);
+        let ca = self.maybe_split(triangle.c, triangle.a, vertices, edges);
 
         match (ab, bc, ca) {
             (Some(ab), Some(bc), Some(ca)) => vec![
