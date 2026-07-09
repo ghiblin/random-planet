@@ -5,8 +5,8 @@ const DEFAULT_ELEVATION_NOISE_HIGH: f32 = 0.05;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ElevationNoiseRange {
-    low: f32,
-    high: f32,
+    pub(crate) low: f32,
+    pub(crate) high: f32,
 }
 
 #[derive(Debug, Clone, PartialEq)]
