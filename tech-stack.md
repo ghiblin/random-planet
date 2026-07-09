@@ -22,6 +22,7 @@
 | `web-sys` | grows per DOM API touched (currently `console`) | `planet-renderer` |
 | `rand` | default | `planet-core` |
 | `rand_pcg` | default | `planet-core` (seeded RNG — required for deterministic generation) |
+| `rand_distr` | default | `planet-core` (`Normal` distribution — `rand`'s own `distr` module has no Gaussian sampler) |
 | `getrandom` | `wasm_js` | `planet-renderer` (wasm32-only — required for `rand`'s transitive `getrandom` dependency to build on `wasm32-unknown-unknown`) |
 | `cucumber` | default | `planet-core`, `planet-renderer` (dev) |
 | `tokio` | `macros`, `rt-multi-thread` (dev-only) | `planet-core`, `planet-renderer` (dev — cucumber test harness) |
