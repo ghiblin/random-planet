@@ -11,10 +11,22 @@ pub(crate) trait SubdivisionStrategy {
     ) -> Vec<Triangle>;
 }
 
+// A triangle produces at most 4 children (red split) and at most one new vertex
+// per edge (3), so these are safe upper bounds for any SubdivisionStrategy.
+fn max_new_vertices(triangle_count: usize) -> usize {
+    3 * triangle_count
+}
+
+fn max_round_triangles(triangle_count: usize) -> usize {
+    4 * triangle_count
+}
+
 fn split_round(mesh: &Mesh, strategy: &mut dyn SubdivisionStrategy) -> Result<Mesh, MeshError> {
+    let triangle_count = mesh.triangles().len();
     let mut vertices = mesh.vertices().to_vec();
+    vertices.reserve(max_new_vertices(triangle_count));
     let mut edges = EdgeCache::new();
-    let mut triangles = Vec::new();
+    let mut triangles = Vec::with_capacity(max_round_triangles(triangle_count));
     for triangle in mesh.triangles() {
         triangles.extend(strategy.split_triangle(&mut vertices, &mut edges, *triangle));
     }
@@ -31,4 +43,19 @@ pub fn subdivide(mesh: &Mesh, mut args: SubdivisionArgs) -> Result<Mesh, MeshErr
         }
     }
     Ok(current)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn max_new_vertices_is_3_per_triangle() {
+        assert_eq!(max_new_vertices(5), 15);
+    }
+
+    #[test]
+    fn max_round_triangles_is_4_per_triangle() {
+        assert_eq!(max_round_triangles(5), 20);
+    }
 }

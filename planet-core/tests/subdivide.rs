@@ -2,7 +2,9 @@ use cucumber::{World as _, given, then, when};
 use planet_core::geometry::mesh::{Mesh, Triangle, Vertex};
 use planet_core::geometry::vec3::Vec3;
 use planet_core::subdivision::elevation_noise_range::ElevationNoiseRange;
+use planet_core::subdivision::min_edge_length::MinEdgeLength;
 use planet_core::subdivision::seed::Seed;
+use planet_core::subdivision::split_point_variance::SplitPointVariance;
 use planet_core::subdivision::steps::Steps;
 use planet_core::subdivision::subdivide::subdivide;
 use planet_core::subdivision::subdivision_args::{SubdivisionArgs, UpdateCallback};
@@ -376,6 +378,147 @@ fn then_first_and_second_not_identical(world: &mut SubdivideWorld) {
         .as_ref()
         .expect("second Mesh not computed");
     assert_ne!(first, second);
+}
+
+fn red_green_args(
+    steps: usize,
+    seed: u64,
+    range: ElevationNoiseRange,
+    min_edge_length: f32,
+    split_point_variance: f32,
+) -> SubdivisionArgs {
+    SubdivisionArgs::new(
+        Some(Steps::new(steps).expect("Steps::new failed")),
+        Some(SubdivisionMode::RedGreenSplit {
+            seed: Seed::from(seed),
+            elevation_noise_range: range,
+            min_edge_length: MinEdgeLength::new(min_edge_length)
+                .expect("MinEdgeLength::new failed"),
+            split_point_variance: SplitPointVariance::new(split_point_variance)
+                .expect("SplitPointVariance::new failed"),
+        }),
+        None,
+    )
+}
+
+#[when(
+    regex = r"^the mesh is subdivided with (\d+) steps? using SubdivisionMode::RedGreenSplit with seed (\d+), the default ElevationNoiseRange, a MinEdgeLength of (-?\d+(?:\.\d+)?), and a SplitPointVariance of (-?\d+(?:\.\d+)?)$"
+)]
+fn when_subdivided_red_green_default_range(
+    world: &mut SubdivideWorld,
+    steps: usize,
+    seed: u64,
+    min_edge_length: f32,
+    split_point_variance: f32,
+) {
+    let source = world.source_mesh();
+    let args = red_green_args(
+        steps,
+        seed,
+        ElevationNoiseRange::default(),
+        min_edge_length,
+        split_point_variance,
+    );
+    world.result = Some(subdivide(&source, args).expect("subdivide() failed"));
+}
+
+#[when(
+    regex = r"^the mesh is subdivided with (\d+) steps? using SubdivisionMode::RedGreenSplit with seed (\d+), an ElevationNoiseRange of low (-?\d+(?:\.\d+)?) and high (-?\d+(?:\.\d+)?), a MinEdgeLength of (-?\d+(?:\.\d+)?), and a SplitPointVariance of (-?\d+(?:\.\d+)?)$"
+)]
+fn when_subdivided_red_green_explicit_range(
+    world: &mut SubdivideWorld,
+    steps: usize,
+    seed: u64,
+    low: f32,
+    high: f32,
+    min_edge_length: f32,
+    split_point_variance: f32,
+) {
+    let source = world.source_mesh();
+    let range = ElevationNoiseRange::new(low, high).expect("ElevationNoiseRange::new failed");
+    let args = red_green_args(steps, seed, range, min_edge_length, split_point_variance);
+    world.result = Some(subdivide(&source, args).expect("subdivide() failed"));
+}
+
+#[when(
+    regex = r"^the mesh is subdivided with (\d+) steps? using SubdivisionMode::RedGreenSplit with seed (\d+), the default ElevationNoiseRange, a MinEdgeLength of (-?\d+(?:\.\d+)?), and a SplitPointVariance of (-?\d+(?:\.\d+)?), producing the first Mesh$"
+)]
+fn when_subdivided_red_green_default_range_first(
+    world: &mut SubdivideWorld,
+    steps: usize,
+    seed: u64,
+    min_edge_length: f32,
+    split_point_variance: f32,
+) {
+    let source = world.source_mesh();
+    let args = red_green_args(
+        steps,
+        seed,
+        ElevationNoiseRange::default(),
+        min_edge_length,
+        split_point_variance,
+    );
+    world.first_mesh = Some(subdivide(&source, args).expect("subdivide() failed"));
+}
+
+#[when(
+    regex = r"^the same icosahedron mesh is subdivided with (\d+) steps? using SubdivisionMode::RedGreenSplit with seed (\d+), the default ElevationNoiseRange, a MinEdgeLength of (-?\d+(?:\.\d+)?), and a SplitPointVariance of (-?\d+(?:\.\d+)?), producing the second Mesh$"
+)]
+fn when_subdivided_red_green_default_range_second(
+    world: &mut SubdivideWorld,
+    steps: usize,
+    seed: u64,
+    min_edge_length: f32,
+    split_point_variance: f32,
+) {
+    let source = world.source_mesh();
+    let args = red_green_args(
+        steps,
+        seed,
+        ElevationNoiseRange::default(),
+        min_edge_length,
+        split_point_variance,
+    );
+    world.second_mesh = Some(subdivide(&source, args).expect("subdivide() failed"));
+}
+
+#[when(
+    regex = r"^the mesh is subdivided with (\d+) steps? using SubdivisionMode::RedGreenSplit with seed (\d+), an ElevationNoiseRange of low (-?\d+(?:\.\d+)?) and high (-?\d+(?:\.\d+)?), a MinEdgeLength of (-?\d+(?:\.\d+)?), and a SplitPointVariance of (-?\d+(?:\.\d+)?), producing the first Mesh$"
+)]
+fn when_subdivided_red_green_explicit_range_first(
+    world: &mut SubdivideWorld,
+    steps: usize,
+    seed: u64,
+    low: f32,
+    high: f32,
+    min_edge_length: f32,
+    split_point_variance: f32,
+) {
+    let source = world.source_mesh();
+    let range = ElevationNoiseRange::new(low, high).expect("ElevationNoiseRange::new failed");
+    let args = red_green_args(steps, seed, range, min_edge_length, split_point_variance);
+    world.first_mesh = Some(subdivide(&source, args).expect("subdivide() failed"));
+}
+
+#[then("the resulting Mesh is identical to the source Mesh")]
+fn then_identical_to_source(world: &mut SubdivideWorld) {
+    let source = world.source_mesh();
+    assert_eq!(*world.result(), source);
+}
+
+#[then("no vertex in the resulting Mesh sits at the exact midpoint of edge 0-1")]
+fn then_no_vertex_at_edge_0_1_midpoint(world: &mut SubdivideWorld) {
+    let source = world.source_mesh();
+    let expected = source.vertices()[0]
+        .position
+        .add(source.vertices()[1].position)
+        .scale(0.5);
+    let found = world
+        .result()
+        .vertices()
+        .iter()
+        .any(|vertex| (vertex.position.sub(expected)).length() < 1e-5);
+    assert!(!found, "unexpected vertex found at midpoint {expected:?}");
 }
 
 #[tokio::main]

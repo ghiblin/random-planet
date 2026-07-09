@@ -12,7 +12,9 @@ use winit::window::{Window, WindowId};
 
 use planet_core::geometry::mesh::Mesh;
 use planet_core::subdivision::elevation_noise_range::ElevationNoiseRange;
+use planet_core::subdivision::min_edge_length::MinEdgeLength;
 use planet_core::subdivision::seed::Seed;
+use planet_core::subdivision::split_point_variance::SplitPointVariance;
 use planet_core::subdivision::subdivide::subdivide;
 use planet_core::subdivision::subdivision_args::SubdivisionArgs;
 use planet_core::subdivision::subdivision_mode::SubdivisionMode;
@@ -85,9 +87,11 @@ impl ApplicationHandler for App {
         });
         let args = SubdivisionArgs::new(
             None,
-            Some(SubdivisionMode::RadialRandomSplit {
+            Some(SubdivisionMode::RedGreenSplit {
                 seed: Seed::from(DEMO_SEED),
                 elevation_noise_range: ElevationNoiseRange::default(),
+                min_edge_length: MinEdgeLength::default(),
+                split_point_variance: SplitPointVariance::default(),
             }),
             Some(update_cb),
         );

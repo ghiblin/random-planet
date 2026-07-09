@@ -24,13 +24,15 @@ file (naming, one-type-per-file) is enforced — not by an automated test.
   functions built entirely from `geometry`'s own types
 - `subdivision/` — `edge.rs` (`EdgeKey`, `EdgeCache`, `pub(crate)`), `steps.rs`
   (`Steps`, `StepsError`), `seed.rs` (`Seed`), `elevation_noise_range.rs`
-  (`ElevationNoiseRange`, `ElevationNoiseRangeError`), `subdivision_mode.rs`
+  (`ElevationNoiseRange`, `ElevationNoiseRangeError`), `min_edge_length.rs`
+  (`MinEdgeLength`, `MinEdgeLengthError`), `split_point_variance.rs`
+  (`SplitPointVariance`, `SplitPointVarianceError`), `subdivision_mode.rs`
   (`SubdivisionMode`), `subdivision_args.rs` (`SubdivisionArgs`), `subdivide.rs`
   (`SubdivisionStrategy` `pub(crate)`, `subdivide`); plus a nested `strategies/`
-  sub-concern (`uniform_red_split.rs`, `radial_random_split.rs`, both `pub(crate)`
-  — exposed publicly only via `SubdivisionMode`, never directly) for the concrete
-  subdivision-algorithm implementations: the recursive subdivision algorithm and
-  its public configuration facade
+  sub-concern (`uniform_red_split.rs`, `radial_random_split.rs`, `red_green_split.rs`,
+  all `pub(crate)` — exposed publicly only via `SubdivisionMode`, never directly)
+  for the concrete subdivision-algorithm implementations: the recursive subdivision
+  algorithm and its public configuration facade
 
 `planet-renderer`'s concerns:
 - `scene/` — `camera.rs` (`Camera`): orbit/zoom input math
