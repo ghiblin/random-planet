@@ -11,8 +11,11 @@ use winit::platform::web::WindowAttributesExtWebSys;
 use winit::window::{Window, WindowId};
 
 use planet_core::geometry::mesh::Mesh;
+use planet_core::processor::vertex_scramble::scramble_vertices;
+use planet_core::processor::vertex_scramble_range::VertexScrambleRange;
 use planet_core::subdivision::elevation_noise_range::ElevationNoiseRange;
 use planet_core::subdivision::min_edge_length::MinEdgeLength;
+use planet_core::subdivision::normal_noise_range::NormalNoiseRange;
 use planet_core::subdivision::seed::Seed;
 use planet_core::subdivision::split_point_variance::SplitPointVariance;
 use planet_core::subdivision::subdivide::subdivide;
@@ -26,6 +29,7 @@ const ORBIT_SENSITIVITY: f32 = 0.005;
 const ZOOM_LINE_SENSITIVITY: f32 = 0.5;
 const ZOOM_PIXEL_SENSITIVITY: f32 = 0.01;
 const DEMO_SEED: u64 = 42;
+const DEMO_SCRAMBLE_SEED: u64 = 43;
 
 pub struct App {
     window: Option<Arc<Window>>,
@@ -79,6 +83,17 @@ impl ApplicationHandler for App {
                 return;
             }
         };
+        let base_mesh = match scramble_vertices(
+            &base_mesh,
+            Seed::from(DEMO_SCRAMBLE_SEED),
+            VertexScrambleRange::default(),
+        ) {
+            Ok(mesh) => mesh,
+            Err(error) => {
+                web_sys::console::error_1(&format!("failed to scramble vertices: {error}").into());
+                return;
+            }
+        };
 
         let collected_frames = Rc::new(RefCell::new(vec![base_mesh.clone()]));
         let frame_collector = collected_frames.clone();
@@ -90,6 +105,7 @@ impl ApplicationHandler for App {
             Some(SubdivisionMode::RedGreenSplit {
                 seed: Seed::from(DEMO_SEED),
                 elevation_noise_range: ElevationNoiseRange::default(),
+                normal_noise_range: NormalNoiseRange::default(),
                 min_edge_length: MinEdgeLength::default(),
                 split_point_variance: SplitPointVariance::default(),
             }),

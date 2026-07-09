@@ -6,6 +6,7 @@ use crate::geometry::mesh::{Triangle, Vertex};
 use crate::subdivision::edge::EdgeCache;
 use crate::subdivision::elevation_noise_range::ElevationNoiseRange;
 use crate::subdivision::min_edge_length::MinEdgeLength;
+use crate::subdivision::normal_noise_range::NormalNoiseRange;
 use crate::subdivision::seed::Seed;
 use crate::subdivision::split_point_variance::SplitPointVariance;
 use crate::subdivision::subdivide::SubdivisionStrategy;
@@ -14,12 +15,14 @@ pub(crate) const MIN_SPLIT_T: f32 = 0.05;
 pub(crate) const MAX_SPLIT_T: f32 = 0.95;
 const MIN_VERTEX_RADIUS: f32 = 0.05;
 
+#[allow(clippy::too_many_arguments)]
 fn displaced_split_point(
     a: &Vertex,
     b: &Vertex,
     rng: &mut Pcg32,
     split_point_variance: SplitPointVariance,
     elevation_noise_range: ElevationNoiseRange,
+    normal_noise_range: NormalNoiseRange,
 ) -> Vertex {
     // Equivalent to Normal::new(0.5, split_point_variance.value()).sample(rng) — see
     // rand_distr's own Distribution<F> impl for Normal, which computes exactly
@@ -35,8 +38,13 @@ fn displaced_split_point(
     }
     let delta = rng.random_range(elevation_noise_range.low()..=elevation_noise_range.high());
     let new_radius = (radius + delta).max(MIN_VERTEX_RADIUS);
-    Vertex {
-        position: point.scale(new_radius / radius),
+    let radial = point.scale(new_radius / radius);
+    let normal_delta = rng.random_range(normal_noise_range.low()..=normal_noise_range.high());
+    match a.position.cross(b.position).normalized() {
+        Some(normal) => Vertex {
+            position: radial.add(normal.scale(normal_delta)),
+        },
+        None => Vertex { position: radial },
     }
 }
 
@@ -50,33 +58,45 @@ fn maybe_split(
     min_edge_length: MinEdgeLength,
     split_point_variance: SplitPointVariance,
     elevation_noise_range: ElevationNoiseRange,
+    normal_noise_range: NormalNoiseRange,
 ) -> Option<usize> {
     let length = vertices[b].position.sub(vertices[a].position).length();
     if length < min_edge_length.value() {
         return None;
     }
     Some(edges.get_or_insert_with(a, b, vertices, |va, vb| {
-        displaced_split_point(va, vb, rng, split_point_variance, elevation_noise_range)
+        displaced_split_point(
+            va,
+            vb,
+            rng,
+            split_point_variance,
+            elevation_noise_range,
+            normal_noise_range,
+        )
     }))
 }
 
 pub(crate) struct RedGreenSplit {
     rng: Pcg32,
     elevation_noise_range: ElevationNoiseRange,
+    normal_noise_range: NormalNoiseRange,
     min_edge_length: MinEdgeLength,
     split_point_variance: SplitPointVariance,
 }
 
 impl RedGreenSplit {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         seed: Seed,
         elevation_noise_range: ElevationNoiseRange,
+        normal_noise_range: NormalNoiseRange,
         min_edge_length: MinEdgeLength,
         split_point_variance: SplitPointVariance,
     ) -> RedGreenSplit {
         RedGreenSplit {
             rng: Pcg32::seed_from_u64(seed.value()),
             elevation_noise_range,
+            normal_noise_range,
             min_edge_length,
             split_point_variance,
         }
@@ -93,6 +113,7 @@ impl SubdivisionStrategy for RedGreenSplit {
         let min_edge_length = self.min_edge_length;
         let split_point_variance = self.split_point_variance;
         let elevation_noise_range = self.elevation_noise_range;
+        let normal_noise_range = self.normal_noise_range;
 
         let ab = maybe_split(
             triangle.a,
@@ -103,6 +124,7 @@ impl SubdivisionStrategy for RedGreenSplit {
             min_edge_length,
             split_point_variance,
             elevation_noise_range,
+            normal_noise_range,
         );
         let bc = maybe_split(
             triangle.b,
@@ -113,6 +135,7 @@ impl SubdivisionStrategy for RedGreenSplit {
             min_edge_length,
             split_point_variance,
             elevation_noise_range,
+            normal_noise_range,
         );
         let ca = maybe_split(
             triangle.c,
@@ -123,6 +146,7 @@ impl SubdivisionStrategy for RedGreenSplit {
             min_edge_length,
             split_point_variance,
             elevation_noise_range,
+            normal_noise_range,
         );
 
         match (ab, bc, ca) {

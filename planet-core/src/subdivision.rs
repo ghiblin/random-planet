@@ -1,6 +1,7 @@
 mod edge;
 pub mod elevation_noise_range;
 pub mod min_edge_length;
+pub mod normal_noise_range;
 pub mod seed;
 pub mod split_point_variance;
 pub mod steps;
