@@ -55,6 +55,22 @@ harness = false
 name = "normal_noise_range"
 harness = false
 
+[[test]]
+name = "rgb"
+harness = false
+
+[[test]]
+name = "color_gradient"
+harness = false
+
+[[test]]
+name = "preset_params"
+harness = false
+
+[[test]]
+name = "preset"
+harness = false
+
 [dependencies]
 rand = "0.10.2"
 rand_distr = "0.6.0"

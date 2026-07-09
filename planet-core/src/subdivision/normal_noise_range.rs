@@ -2,8 +2,8 @@ use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct NormalNoiseRange {
-    low: f32,
-    high: f32,
+    pub(crate) low: f32,
+    pub(crate) high: f32,
 }
 
 #[derive(Debug, Clone, PartialEq)]

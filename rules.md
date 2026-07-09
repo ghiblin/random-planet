@@ -44,6 +44,10 @@ file (naming, one-type-per-file) is enforced — not by an automated test.
   (`identity`, `pub(crate)`), `radial_displacement.rs` (`radial_displacement`,
   `MIN_VERTEX_RADIUS`, `pub(crate)`), `normal_displacement.rs`
   (`normal_displacement`, `pub(crate)`), `compose.rs` (`compose`, `pub(crate)`))
+- `color/` — elevation-to-color mapping value types, no algorithm: `rgb.rs` (`Rgb`,
+  `RgbError`), `color_gradient.rs` (`ColorGradient`, `ColorGradientError`)
+- `presets/` — bundles the subdivision/color knobs into named, pre-tuned presets:
+  `preset_params.rs` (`PresetParams`), `preset.rs` (`Preset`)
 
 `planet-renderer`'s concerns:
 - `scene/` — `camera.rs` (`Camera`): orbit/zoom input math
