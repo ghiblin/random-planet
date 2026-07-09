@@ -33,6 +33,9 @@ file (naming, one-type-per-file) is enforced — not by an automated test.
   all `pub(crate)` — exposed publicly only via `SubdivisionMode`, never directly)
   for the concrete subdivision-algorithm implementations: the recursive subdivision
   algorithm and its public configuration facade
+- `processor/` — pre/post-processing steps that run outside the subdivision algorithm, each
+  taking an already-built `Mesh` and returning a transformed one: `vertex_scramble_range.rs`
+  (`VertexScrambleRange`, `VertexScrambleRangeError`), `vertex_scramble.rs` (`scramble_vertices`)
 
 `planet-renderer`'s concerns:
 - `scene/` — `camera.rs` (`Camera`): orbit/zoom input math
