@@ -1,5 +1,5 @@
 use rand::{RngExt, SeedableRng};
-use rand_distr::Normal;
+use rand_distr::StandardNormal;
 use rand_pcg::Pcg32;
 
 use crate::geometry::mesh::{Triangle, Vertex};
@@ -21,9 +21,13 @@ fn displaced_split_point(
     split_point_variance: SplitPointVariance,
     elevation_noise_range: ElevationNoiseRange,
 ) -> Vertex {
-    let normal = Normal::new(0.5, split_point_variance.value())
-        .expect("SplitPointVariance guarantees a non-negative standard deviation");
-    let t = rng.sample(normal).clamp(MIN_SPLIT_T, MAX_SPLIT_T);
+    // Equivalent to Normal::new(0.5, split_point_variance.value()).sample(rng) — see
+    // rand_distr's own Distribution<F> impl for Normal, which computes exactly
+    // `mean + std_dev * StandardNormal.sample(rng)` — but without Normal::new's
+    // fallible (non-finite std_dev) construction step, which production code must
+    // never unwrap/expect on.
+    let z: f32 = rng.sample(StandardNormal);
+    let t = (0.5 + split_point_variance.value() * z).clamp(MIN_SPLIT_T, MAX_SPLIT_T);
     let point = a.position.add(b.position.sub(a.position).scale(t));
     let radius = point.length();
     if radius == 0.0 {
