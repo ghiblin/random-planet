@@ -35,8 +35,17 @@ harness = false
 name = "elevation_noise_range"
 harness = false
 
+[[test]]
+name = "min_edge_length"
+harness = false
+
+[[test]]
+name = "split_point_variance"
+harness = false
+
 [dependencies]
 rand = "0.10.2"
+rand_distr = "0.6.0"
 rand_pcg = "0.10.2"
 
 [dev-dependencies]

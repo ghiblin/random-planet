@@ -31,21 +31,21 @@ Single aggregate ⇒ no `entities/value_objects/ports` subfolder split (see `rul
 
 ## Subdivision algorithm (red-green)
 
-Per triangle, per recursion level: for each of its 3 edges, consult the `EdgeCache`. If uncached, compute the edge's current length from its (possibly already-perturbed) endpoint positions:
+Per triangle, per recursion level: for each of its 3 edges, compute the edge's current length directly from its (possibly already-perturbed) endpoint positions — this comparison needs no cache, since it is a pure function of the two endpoint positions and both triangles sharing this edge compute it identically:
 
-- If `length < preset.min_edge_length` → mark **not split**
-- Otherwise → mark **split**, with the split point at `t = clamp(gaussian(mean=0.5, std=preset.split_point_variance), t_min, t_max)` along the edge, then displace the new vertex along its radius by a random amount drawn from `preset.elevation_noise_range`
+- If `length < preset.min_edge_length` → mark **not split**; the two triangles sharing this edge each keep referencing its original two endpoints directly, no new vertex
+- Otherwise → mark **split**: consult the `EdgeCache` (so both triangles sharing this edge agree on the same new vertex instead of creating two), and if uncached, place the split point at `t = clamp(gaussian(mean=0.5, std=preset.split_point_variance), t_min, t_max)` along the edge, then displace the new vertex along its radius by a random amount drawn from `preset.elevation_noise_range`
 
-Triangulate based on how many of the 3 edges ended up split:
+Triangulate based on how many of the 3 edges ended up split this round:
 
-| Edges split | Label | Children | Recurses further? |
-|---|---|---|---|
-| 3 | red | 4 (classic subdivision) | yes |
-| 2 | green | 3 (fan through the two midpoints) | no |
-| 1 | green | 2 | no |
-| 0 | leaf | 1 (unchanged) | no |
+| Edges split | Label | Children |
+|---|---|---|
+| 3 | red | 4 (classic subdivision) |
+| 2 | green | 3 (fan through the two midpoints) |
+| 1 | green | 2 |
+| 0 | leaf | 1 (unchanged) |
 
-Green triangles are **not** recursed into further — this avoids compounding sliver-triangle distortion across levels (see brainstorming discussion: red-green refinement is a known FEM technique, but repeatedly recursing into green triangles degrades triangle quality).
+Every child triangle produced by any of the four cases above is re-evaluated on its own current edges in the next round, using the same per-edge length rule — there is no memory of a triangle's red/green/leaf label from a previous round. In particular, a green triangle's newly created edge (the diagonal from a split edge's midpoint to the third vertex, or between the two split edges' midpoints) is not specially exempted: if that edge's length is still `>= min_edge_length` in a later round, it is split further like any other edge. This is a deliberate simplicity/performance trade-off over permanently pinning green triangles (which would require every strategy call to carry cross-round memory of prior classifications): re-deriving the decision from current edge lengths each round is both simpler and, at this app's mesh scale, no more expensive than maintaining that memory, at the cost of occasionally giving a green triangle one more round of refinement than a stricter red-green scheme would allow.
 
 The subdivision-depth UI control is a **hard cap** on recursion levels, independent of `min_edge_length` — it bounds runaway recursion regardless of preset (per `constitution.md`).
 
