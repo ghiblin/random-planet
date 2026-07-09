@@ -3,7 +3,7 @@ use std::fmt;
 const DEFAULT_MIN_EDGE_LENGTH: f32 = 0.1;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct MinEdgeLength(f32);
+pub struct MinEdgeLength(pub(crate) f32);
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum MinEdgeLengthError {

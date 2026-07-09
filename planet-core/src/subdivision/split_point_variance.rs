@@ -3,7 +3,7 @@ use std::fmt;
 const DEFAULT_SPLIT_POINT_VARIANCE: f32 = 0.1;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct SplitPointVariance(f32);
+pub struct SplitPointVariance(pub(crate) f32);
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum SplitPointVarianceError {
