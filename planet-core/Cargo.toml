@@ -43,6 +43,18 @@ harness = false
 name = "split_point_variance"
 harness = false
 
+[[test]]
+name = "vertex_scramble_range"
+harness = false
+
+[[test]]
+name = "vertex_scramble"
+harness = false
+
+[[test]]
+name = "normal_noise_range"
+harness = false
+
 [dependencies]
 rand = "0.10.2"
 rand_distr = "0.6.0"

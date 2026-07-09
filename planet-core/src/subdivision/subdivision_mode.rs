@@ -1,5 +1,6 @@
 use super::elevation_noise_range::ElevationNoiseRange;
 use super::min_edge_length::MinEdgeLength;
+use super::normal_noise_range::NormalNoiseRange;
 use super::seed::Seed;
 use super::split_point_variance::SplitPointVariance;
 use super::strategies::radial_random_split::RadialRandomSplit;
@@ -14,10 +15,12 @@ pub enum SubdivisionMode {
     RadialRandomSplit {
         seed: Seed,
         elevation_noise_range: ElevationNoiseRange,
+        normal_noise_range: NormalNoiseRange,
     },
     RedGreenSplit {
         seed: Seed,
         elevation_noise_range: ElevationNoiseRange,
+        normal_noise_range: NormalNoiseRange,
         min_edge_length: MinEdgeLength,
         split_point_variance: SplitPointVariance,
     },
@@ -30,15 +33,22 @@ impl SubdivisionMode {
             SubdivisionMode::RadialRandomSplit {
                 seed,
                 elevation_noise_range,
-            } => Box::new(RadialRandomSplit::new(*seed, *elevation_noise_range)),
+                normal_noise_range,
+            } => Box::new(RadialRandomSplit::new(
+                *seed,
+                *elevation_noise_range,
+                *normal_noise_range,
+            )),
             SubdivisionMode::RedGreenSplit {
                 seed,
                 elevation_noise_range,
+                normal_noise_range,
                 min_edge_length,
                 split_point_variance,
             } => Box::new(RedGreenSplit::new(
                 *seed,
                 *elevation_noise_range,
+                *normal_noise_range,
                 *min_edge_length,
                 *split_point_variance,
             )),
