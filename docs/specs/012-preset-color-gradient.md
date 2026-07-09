@@ -343,6 +343,10 @@ Feature: Constructing a validated Rgb color
   Scenario: Constructing an Rgb with a channel above 1.0 fails
     When an Rgb is constructed with r 0.5, g 1.5, b 0.5
     Then the construction fails with an out-of-range error of r 0.5, g 1.5, b 0.5
+
+  Scenario: Constructing an Rgb with a NaN channel fails
+    When an Rgb is constructed with r NaN, g 0.5, b 0.5
+    Then the construction fails with an out-of-range error where r is NaN
 ```
 
 `planet-core/tests/features/color_gradient.feature`:
@@ -435,13 +439,20 @@ Feature: Selecting a Preset's parameters
     And the PresetParams has a NormalNoiseRange of low -0.15 and high 0.15
     And the PresetParams has a SplitPointVariance of 0.25
 
-  Scenario: Each preset's color gradient samples its own lowest configured elevation to its first stop's color
+  Scenario: Earthy's color gradient samples its own lowest and highest configured elevations to its first and last stops' colors
     When Preset::Earthy's params are requested
     Then sampling its color gradient at elevation 0.85 returns Rgb r 0.05, g 0.15, b 0.45
+    And sampling its color gradient at elevation 1.15 returns Rgb r 0.95, g 0.95, b 0.95
 
-  Scenario: Each preset's color gradient samples its own highest configured elevation to its last stop's color
+  Scenario: Volcano's color gradient samples its own lowest and highest configured elevations to its first and last stops' colors
     When Preset::Volcano's params are requested
-    Then sampling its color gradient at elevation 1.35 returns Rgb r 1.0, g 0.85, b 0.3
+    Then sampling its color gradient at elevation 0.95 returns Rgb r 0.1, g 0.05, b 0.05
+    And sampling its color gradient at elevation 1.35 returns Rgb r 1.0, g 0.85, b 0.3
+
+  Scenario: Rocky's color gradient samples its own lowest and highest configured elevations to its first and last stops' colors
+    When Preset::Rocky's params are requested
+    Then sampling its color gradient at elevation 0.8 returns Rgb r 0.3, g 0.28, b 0.26
+    And sampling its color gradient at elevation 1.2 returns Rgb r 0.8, g 0.78, b 0.74
 
   Scenario: Preset::params is deterministic
     When Preset::Rocky's params are requested twice

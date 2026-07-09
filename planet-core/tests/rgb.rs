@@ -18,7 +18,7 @@ impl RgbWorld {
 }
 
 #[when(
-    regex = r"^an Rgb is constructed with r (-?\d+(?:\.\d+)?), g (-?\d+(?:\.\d+)?), b (-?\d+(?:\.\d+)?)$"
+    regex = r"^an Rgb is constructed with r (-?\d+(?:\.\d+)?|NaN), g (-?\d+(?:\.\d+)?|NaN), b (-?\d+(?:\.\d+)?|NaN)$"
 )]
 fn when_constructed(world: &mut RgbWorld, r: f32, g: f32, b: f32) {
     world.result = Some(Rgb::new(r, g, b));
@@ -51,6 +51,14 @@ fn then_out_of_range(world: &mut RgbWorld, r: f32, g: f32, b: f32) {
             assert_eq!(*actual_g, g);
             assert_eq!(*actual_b, b);
         }
+        other => panic!("expected OutOfRange, got {other:?}"),
+    }
+}
+
+#[then("the construction fails with an out-of-range error where r is NaN")]
+fn then_out_of_range_r_nan(world: &mut RgbWorld) {
+    match world.result.as_ref().expect("Rgb not constructed") {
+        Err(RgbError::OutOfRange { r, .. }) => assert!(r.is_nan(), "expected NaN, got {r}"),
         other => panic!("expected OutOfRange, got {other:?}"),
     }
 }

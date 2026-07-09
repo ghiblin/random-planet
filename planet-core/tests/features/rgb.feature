@@ -16,3 +16,7 @@ Feature: Constructing a validated Rgb color
   Scenario: Constructing an Rgb with a channel above 1.0 fails
     When an Rgb is constructed with r 0.5, g 1.5, b 0.5
     Then the construction fails with an out-of-range error of r 0.5, g 1.5, b 0.5
+
+  Scenario: Constructing an Rgb with a NaN channel fails
+    When an Rgb is constructed with r NaN, g 0.5, b 0.5
+    Then the construction fails with an out-of-range error where r is NaN
