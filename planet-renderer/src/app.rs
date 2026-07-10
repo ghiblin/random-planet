@@ -11,16 +11,10 @@ use winit::platform::web::WindowAttributesExtWebSys;
 use winit::window::{Window, WindowId};
 
 use planet_core::geometry::mesh::Mesh;
-use planet_core::processor::vertex_scramble::scramble_vertices;
-use planet_core::processor::vertex_scramble_range::VertexScrambleRange;
-use planet_core::subdivision::elevation_noise_range::ElevationNoiseRange;
-use planet_core::subdivision::min_edge_length::MinEdgeLength;
-use planet_core::subdivision::normal_noise_range::NormalNoiseRange;
+use planet_core::planets::planet::{GenerationProgress, Planet};
+use planet_core::presets::preset::Preset;
 use planet_core::subdivision::seed::Seed;
-use planet_core::subdivision::split_point_variance::SplitPointVariance;
-use planet_core::subdivision::subdivide::subdivide;
-use planet_core::subdivision::subdivision_args::SubdivisionArgs;
-use planet_core::subdivision::subdivision_mode::SubdivisionMode;
+use planet_core::subdivision::steps::Steps;
 
 use crate::gpu::render::Renderer;
 use crate::scene::camera::Camera;
@@ -29,7 +23,7 @@ const ORBIT_SENSITIVITY: f32 = 0.005;
 const ZOOM_LINE_SENSITIVITY: f32 = 0.5;
 const ZOOM_PIXEL_SENSITIVITY: f32 = 0.01;
 const DEMO_SEED: u64 = 42;
-const DEMO_SCRAMBLE_SEED: u64 = 43;
+const DEMO_PRESET: Preset = Preset::Earthy;
 
 pub struct App {
     window: Option<Arc<Window>>,
@@ -74,52 +68,25 @@ impl ApplicationHandler for App {
         self.window = Some(window.clone());
         window.request_redraw();
 
-        let base_mesh = match Mesh::icosahedron() {
-            Ok(mesh) => mesh,
-            Err(error) => {
-                web_sys::console::error_1(
-                    &format!("failed to construct icosahedron: {error}").into(),
-                );
-                return;
-            }
-        };
-        let base_mesh = match scramble_vertices(
-            &base_mesh,
-            Seed::from(DEMO_SCRAMBLE_SEED),
-            VertexScrambleRange::default(),
-        ) {
-            Ok(mesh) => mesh,
-            Err(error) => {
-                web_sys::console::error_1(&format!("failed to scramble vertices: {error}").into());
-                return;
-            }
-        };
-
-        let collected_frames = Rc::new(RefCell::new(vec![base_mesh.clone()]));
+        let collected_frames = Rc::new(RefCell::new(Vec::new()));
         let frame_collector = collected_frames.clone();
-        let update_cb: Box<dyn FnMut(&Mesh, usize)> = Box::new(move |mesh, _round| {
+        let on_progress: GenerationProgress = Box::new(move |mesh, _round| {
             frame_collector.borrow_mut().push(mesh.clone());
         });
-        let args = SubdivisionArgs::new(
-            None,
-            Some(SubdivisionMode::RedGreenSplit {
-                seed: Seed::from(DEMO_SEED),
-                elevation_noise_range: ElevationNoiseRange::default(),
-                normal_noise_range: NormalNoiseRange::default(),
-                min_edge_length: MinEdgeLength::default(),
-                split_point_variance: SplitPointVariance::default(),
-            }),
-            Some(update_cb),
-        );
-        if let Err(error) = subdivide(&base_mesh, args) {
-            web_sys::console::error_1(&format!("failed to subdivide icosahedron: {error}").into());
+        if let Err(error) = Planet::generate(
+            DEMO_PRESET,
+            Seed::from(DEMO_SEED),
+            Steps::default(),
+            Some(on_progress),
+        ) {
+            web_sys::console::error_1(&format!("failed to generate planet: {error}").into());
             return;
         }
         self.frames = match Rc::try_unwrap(collected_frames) {
             Ok(frames) => frames.into_inner(),
             Err(_) => {
                 web_sys::console::error_1(
-                    &"failed to collect subdivision frames: update_cb outlived subdivide".into(),
+                    &"failed to collect generation frames: on_progress outlived generate".into(),
                 );
                 return;
             }
