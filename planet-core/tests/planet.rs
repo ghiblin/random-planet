@@ -267,6 +267,15 @@ fn then_preset_is(world: &mut PlanetWorld, preset_name: String) {
     assert_eq!(planet.preset(), parse_preset(&preset_name));
 }
 
+#[then(regex = r"^the resulting Planet's seed is (\d+)$")]
+fn then_seed_is(world: &mut PlanetWorld, seed: u64) {
+    let planet = world
+        .first_planet
+        .as_ref()
+        .expect("first Planet not generated");
+    assert_eq!(planet.seed(), Seed::from(seed));
+}
+
 #[then(
     regex = r"^the resulting Planet's mesh is identical to a Planet generated with seed (\d+) and the (Earthy|Volcano|Rocky) preset at max depth (\d+)$"
 )]
