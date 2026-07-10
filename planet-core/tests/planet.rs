@@ -1,7 +1,6 @@
 use cucumber::{World as _, given, then, when};
 use planet_core::geometry::mesh::Mesh;
-use planet_core::planets::planet::Planet;
-use planet_core::planets::planet_builder::GenerationProgress;
+use planet_core::planets::planet::{GenerationProgress, Planet};
 use planet_core::presets::preset::Preset;
 use planet_core::subdivision::seed::Seed;
 use planet_core::subdivision::steps::Steps;
@@ -35,13 +34,18 @@ fn parse_preset(name: &str) -> Preset {
     }
 }
 
-fn generate(seed: u64, preset_name: &str, max_depth: usize) -> Planet {
+fn create(seed: u64, preset_name: &str) -> Planet {
     Planet::builder()
         .with_preset(parse_preset(preset_name))
         .with_seed(Seed::from(seed))
-        .with_max_depth(Steps::new(max_depth).expect("Steps::new failed"))
         .build()
         .expect("PlanetBuilder::build failed")
+}
+
+fn generate(seed: u64, preset_name: &str, max_depth: usize) -> Planet {
+    create(seed, preset_name)
+        .subdivide(Steps::new(max_depth).expect("Steps::new failed"), None)
+        .expect("Planet::subdivide failed")
 }
 
 #[given(
@@ -206,13 +210,12 @@ fn when_generated_with_callback(
         recorder.borrow_mut().push((mesh.clone(), round));
     });
     world.first_planet = Some(
-        Planet::builder()
-            .with_preset(parse_preset(&preset_name))
-            .with_seed(Seed::from(seed))
-            .with_max_depth(Steps::new(max_depth).expect("Steps::new failed"))
-            .with_on_progress(on_progress)
-            .build()
-            .expect("PlanetBuilder::build failed"),
+        create(seed, &preset_name)
+            .subdivide(
+                Steps::new(max_depth).expect("Steps::new failed"),
+                Some(on_progress),
+            )
+            .expect("Planet::subdivide failed"),
     );
 }
 
@@ -279,6 +282,45 @@ fn then_mesh_identical_to_generated(
         .expect("first Planet not generated");
     let expected = generate(seed, &preset_name, max_depth);
     assert_eq!(planet.mesh(), expected.mesh());
+}
+
+#[then("the resulting Planet has no max depth set")]
+fn then_no_max_depth(world: &mut PlanetWorld) {
+    let planet = world
+        .first_planet
+        .as_ref()
+        .expect("first Planet not generated");
+    assert_eq!(planet.max_depth(), None);
+}
+
+#[given(regex = r"^a Planet created with the (Earthy|Volcano|Rocky) preset and seed (\d+)$")]
+fn given_planet_created(world: &mut PlanetWorld, preset_name: String, seed: u64) {
+    world.first_planet = Some(create(seed, &preset_name));
+}
+
+#[when(regex = r"^that Planet is subdivided to max depth (\d+)$")]
+fn when_subdivided_to_max_depth(world: &mut PlanetWorld, max_depth: usize) {
+    let planet = world
+        .first_planet
+        .take()
+        .expect("first Planet not generated");
+    world.first_planet = Some(
+        planet
+            .subdivide(Steps::new(max_depth).expect("Steps::new failed"), None)
+            .expect("Planet::subdivide failed"),
+    );
+}
+
+#[then(regex = r"^the resulting Planet's max depth is (\d+)$")]
+fn then_max_depth_is(world: &mut PlanetWorld, max_depth: usize) {
+    let planet = world
+        .first_planet
+        .as_ref()
+        .expect("first Planet not generated");
+    assert_eq!(
+        planet.max_depth(),
+        Some(Steps::new(max_depth).expect("Steps::new failed"))
+    );
 }
 
 #[tokio::main]

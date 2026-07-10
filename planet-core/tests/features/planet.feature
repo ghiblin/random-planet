@@ -45,4 +45,16 @@ Feature: Planet aggregate generation
   Scenario: Building a Planet with no fields set falls back to each field's default
     Given a Planet built with no fields set
     Then the resulting Planet's preset is Earthy
-    And the resulting Planet's mesh is identical to a Planet generated with seed 0 and the Earthy preset at max depth 3
+    And the resulting Planet's mesh is identical to the icosahedron mesh
+    And the resulting Planet has no max depth set
+
+  Scenario: Creating a Planet does not subdivide it
+    Given a Planet created with the Earthy preset and seed 1
+    Then the resulting Planet's mesh is identical to the icosahedron mesh
+    And the resulting Planet has no max depth set
+
+  Scenario: Subdividing a created Planet produces a new Planet at the requested max depth
+    Given a Planet created with the Earthy preset and seed 1
+    When that Planet is subdivided to max depth 3
+    Then the resulting Planet's max depth is 3
+    And the resulting Planet's mesh is identical to a Planet generated with seed 1 and the Earthy preset at max depth 3

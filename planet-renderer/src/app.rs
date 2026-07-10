@@ -11,8 +11,7 @@ use winit::platform::web::WindowAttributesExtWebSys;
 use winit::window::{Window, WindowId};
 
 use planet_core::geometry::mesh::Mesh;
-use planet_core::planets::planet::Planet;
-use planet_core::planets::planet_builder::GenerationProgress;
+use planet_core::planets::planet::{GenerationProgress, Planet};
 use planet_core::presets::preset::Preset;
 use planet_core::subdivision::seed::Seed;
 use planet_core::subdivision::steps::Steps;
@@ -69,19 +68,25 @@ impl ApplicationHandler for App {
         self.window = Some(window.clone());
         window.request_redraw();
 
+        let planet = match Planet::builder()
+            .with_preset(DEMO_PRESET)
+            .with_seed(Seed::from(DEMO_SEED))
+            .build()
+        {
+            Ok(planet) => planet,
+            Err(error) => {
+                web_sys::console::error_1(&format!("failed to create planet: {error}").into());
+                return;
+            }
+        };
+
         let collected_frames = Rc::new(RefCell::new(Vec::new()));
         let frame_collector = collected_frames.clone();
         let on_progress: GenerationProgress = Box::new(move |mesh, _round| {
             frame_collector.borrow_mut().push(mesh.clone());
         });
-        if let Err(error) = Planet::builder()
-            .with_preset(DEMO_PRESET)
-            .with_seed(Seed::from(DEMO_SEED))
-            .with_max_depth(Steps::default())
-            .with_on_progress(on_progress)
-            .build()
-        {
-            web_sys::console::error_1(&format!("failed to generate planet: {error}").into());
+        if let Err(error) = planet.subdivide(Steps::default(), Some(on_progress)) {
+            web_sys::console::error_1(&format!("failed to subdivide planet: {error}").into());
             return;
         }
         self.frames = match Rc::try_unwrap(collected_frames) {
