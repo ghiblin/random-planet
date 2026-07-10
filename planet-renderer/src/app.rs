@@ -11,7 +11,8 @@ use winit::platform::web::WindowAttributesExtWebSys;
 use winit::window::{Window, WindowId};
 
 use planet_core::geometry::mesh::Mesh;
-use planet_core::planets::planet::{GenerationProgress, Planet};
+use planet_core::planets::planet::Planet;
+use planet_core::planets::planet_builder::GenerationProgress;
 use planet_core::presets::preset::Preset;
 use planet_core::subdivision::seed::Seed;
 use planet_core::subdivision::steps::Steps;
@@ -73,12 +74,13 @@ impl ApplicationHandler for App {
         let on_progress: GenerationProgress = Box::new(move |mesh, _round| {
             frame_collector.borrow_mut().push(mesh.clone());
         });
-        if let Err(error) = Planet::generate(
-            DEMO_PRESET,
-            Seed::from(DEMO_SEED),
-            Steps::default(),
-            Some(on_progress),
-        ) {
+        if let Err(error) = Planet::builder()
+            .with_preset(DEMO_PRESET)
+            .with_seed(Seed::from(DEMO_SEED))
+            .with_max_depth(Steps::default())
+            .with_on_progress(on_progress)
+            .build()
+        {
             web_sys::console::error_1(&format!("failed to generate planet: {error}").into());
             return;
         }

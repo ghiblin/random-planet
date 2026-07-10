@@ -48,8 +48,9 @@ file (naming, one-type-per-file) is enforced — not by an automated test.
   `RgbError`), `color_gradient.rs` (`ColorGradient`, `ColorGradientError`)
 - `presets/` — bundles the subdivision/color knobs into named, pre-tuned presets:
   `preset_params.rs` (`PresetParams`), `preset.rs` (`Preset`)
-- `planets/` — the aggregate root and its generation entry point: `planet.rs`
-  (`Planet`, `GenerationProgress`)
+- `planets/` — the aggregate root and its builder-pattern generation entry point:
+  `planet.rs` (`Planet`, `PlanetError`), `planet_builder.rs` (`PlanetBuilder`,
+  `GenerationProgress`)
 
 `planet-renderer`'s concerns:
 - `scene/` — `camera.rs` (`Camera`): orbit/zoom input math
@@ -67,7 +68,7 @@ One type per file, everywhere (unchanged).
 ## Crate boundaries
 
 Consumers of `planet-core` — currently only `planet-renderer` — must obtain every
-generated `Mesh` via `Planet`/`Planet::generate`, never via `Mesh::icosahedron()`,
+generated `Mesh` via `Planet`/`Planet::builder()`, never via `Mesh::icosahedron()`,
 `subdivide()`, `SubdivisionMode`, `scramble_vertices()`, or any other generation
 primitive directly. Reading an already-obtained `Mesh`'s own data (`vertices()`,
 `triangles()`, e.g. `planet-renderer`'s `gpu/buffers.rs`) is unaffected — the rule is

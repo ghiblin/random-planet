@@ -41,3 +41,8 @@ Feature: Planet aggregate generation
     When a Planet is generated with seed 9 and the Earthy preset at max depth 0 using that callback
     Then the progress callback was invoked 1 time
     And the progress callback's 1st invocation received round 0 with the base icosahedron mesh
+
+  Scenario: Building a Planet with no fields set falls back to each field's default
+    Given a Planet built with no fields set
+    Then the resulting Planet's preset is Earthy
+    And the resulting Planet's mesh is identical to a Planet generated with seed 0 and the Earthy preset at max depth 3
