@@ -48,6 +48,10 @@ file (naming, one-type-per-file) is enforced — not by an automated test.
   `RgbError`), `color_gradient.rs` (`ColorGradient`, `ColorGradientError`)
 - `presets/` — bundles the subdivision/color knobs into named, pre-tuned presets:
   `preset_params.rs` (`PresetParams`), `preset.rs` (`Preset`)
+- `planets/` — the aggregate root, split into its two lifecycle operations:
+  `planet.rs` (`Planet` — including its `subdivide` method, `PlanetError`,
+  `GenerationProgress`), `planet_builder.rs` (`PlanetBuilder` — creation only,
+  no subdivision)
 
 `planet-renderer`'s concerns:
 - `scene/` — `camera.rs` (`Camera`): orbit/zoom input math
@@ -61,6 +65,22 @@ when no existing concern fits — never add a bare `.rs` file directly under `sr
 a shortcut.
 
 One type per file, everywhere (unchanged).
+
+## Crate boundaries
+
+Consumers of `planet-core` — currently only `planet-renderer` — must obtain every
+generated `Mesh` via `Planet`'s own lifecycle operations (`Planet::builder()...build()`
+to create one, `Planet::subdivide()` to subdivide one), never via `Mesh::icosahedron()`,
+`subdivide()`, `SubdivisionMode`, `scramble_vertices()`, or any other generation
+primitive directly. Reading an already-obtained `Mesh`'s own data (`vertices()`,
+`triangles()`, e.g. `planet-renderer`'s `gpu/buffers.rs`) is unaffected — the rule is
+about how a `Mesh` is *produced*, not how its data is *read*.
+
+This is a documentation rule, enforced at `planet-pr-validate` review time, not by the
+compiler: every generation primitive stays `pub` because `planet-core`'s own BDD/unit
+test suite lives under `planet-core/tests/`, which Rust compiles as a separate crate
+that can only see `pub` items, never `pub(crate)` — a real visibility lockdown would
+break that entire test suite.
 
 ## Error handling
 - No `unwrap()`/`panic!()` in production code — permitted only in tests and examples
