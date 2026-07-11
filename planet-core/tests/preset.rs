@@ -80,6 +80,24 @@ fn then_color_gradient_sample(world: &mut PresetWorld, elevation: f32, r: f32, g
     assert_eq!(sampled.b(), b);
 }
 
+#[then(regex = r"^the PresetParams has an OceanQuota of (-?\d+(?:\.\d+)?)$")]
+fn then_ocean_quota(world: &mut PresetWorld, value: f32) {
+    let params = world.params.as_ref().expect("PresetParams not requested");
+    assert_eq!(
+        params
+            .ocean_quota()
+            .expect("PresetParams has no OceanQuota")
+            .value(),
+        value
+    );
+}
+
+#[then("the PresetParams has no OceanQuota")]
+fn then_no_ocean_quota(world: &mut PresetWorld) {
+    let params = world.params.as_ref().expect("PresetParams not requested");
+    assert_eq!(params.ocean_quota(), None);
+}
+
 #[then("both PresetParams are identical")]
 fn then_both_identical(world: &mut PresetWorld) {
     let (first, second) = world
