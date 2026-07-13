@@ -308,7 +308,8 @@ impl App {
 
                 let seed = seed_from_timestamp(js_sys::Date::now());
 
-                if renderer.borrow().is_none() {
+                let renderer_ready = renderer.borrow().is_some();
+                if !renderer_ready {
                     log_error("renderer not ready yet; ignoring Start click");
                     return;
                 }
