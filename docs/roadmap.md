@@ -12,6 +12,7 @@ Each phase below becomes a spec written by the `planet-spec` skill (`docs/specs/
 - **005 — Radial randomness** — random radial vertex displacement on newly created vertices during subdivision
 - **006 — Irregular subdivision** — length-threshold stopping condition, Gaussian-distributed split point, red-green triangulation for partially-split triangles
 - **007 — Planet presets** — `Preset`/`PresetParams`, color gradient, ocean-quota sea-level + flattening (Earthy), Volcano/Rocky presets, preset dropdown + depth slider UI wiring
+- **008 — Length-relative displacement noise** — `radial_displacement`/`normal_displacement` currently sample a fixed absolute magnitude from `ElevationNoiseRange`/`NormalNoiseRange` every round, intentionally compounding per `007-radial-randomness.md`'s own documented bound (`radius <= 1.0 + steps * elevation_noise_range.high()`); this makes presets with a tighter `min_edge_length` (Volcano, Rocky) — which subdivide many more rounds before converging than Earthy — accumulate disproportionate, unintended-looking displacement at higher depths. Review scaling the sampled delta by the current edge's length instead of applying a fixed magnitude (both split-edge endpoints are already available in `VertexOperator`'s signature, no interface change needed), and update `007-radial-randomness.md`'s invariant language and BDD scenarios to match the new length-relative semantics
 
 ## Current state
 
