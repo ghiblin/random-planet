@@ -35,3 +35,9 @@ Feature: Flattening a mesh's lowest-radius vertices to a shared sea level
     Given a Mesh with no vertices and no triangles
     When that mesh is flattened with an OceanQuota of 0.5
     Then the resulting Mesh is identical to the original mesh
+
+  Scenario: Flattening is deterministic for identical inputs
+    Given a Mesh with vertices at radii 0.9, 1.0, 1.1, 1.2
+    When that mesh is flattened with an OceanQuota of 0.5, producing the first Mesh
+    And the same mesh is flattened with an OceanQuota of 0.5, producing the second Mesh
+    Then the first Mesh and the second Mesh are identical

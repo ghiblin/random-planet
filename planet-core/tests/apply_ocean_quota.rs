@@ -9,6 +9,8 @@ pub struct ApplyOceanQuotaWorld {
     vertices: Vec<Vertex>,
     source: Option<Mesh>,
     result: Option<Mesh>,
+    first_mesh: Option<Mesh>,
+    second_mesh: Option<Mesh>,
 }
 
 impl ApplyOceanQuotaWorld {
@@ -63,6 +65,34 @@ fn when_flattened(world: &mut ApplyOceanQuotaWorld, quota: f32) {
     world.source = Some(source.clone());
     let quota = OceanQuota::new(quota).expect("OceanQuota::new failed");
     world.result = Some(apply_ocean_quota(&source, quota).expect("apply_ocean_quota failed"));
+}
+
+#[when(
+    regex = r"^that mesh is flattened with an OceanQuota of (\d+(?:\.\d+)?), producing the first Mesh$"
+)]
+fn when_flattened_first(world: &mut ApplyOceanQuotaWorld, quota: f32) {
+    let source = world.source_mesh();
+    let quota = OceanQuota::new(quota).expect("OceanQuota::new failed");
+    world.first_mesh = Some(apply_ocean_quota(&source, quota).expect("apply_ocean_quota failed"));
+}
+
+#[when(
+    regex = r"^the same mesh is flattened with an OceanQuota of (\d+(?:\.\d+)?), producing the second Mesh$"
+)]
+fn when_flattened_second(world: &mut ApplyOceanQuotaWorld, quota: f32) {
+    let source = world.source_mesh();
+    let quota = OceanQuota::new(quota).expect("OceanQuota::new failed");
+    world.second_mesh = Some(apply_ocean_quota(&source, quota).expect("apply_ocean_quota failed"));
+}
+
+#[then("the first Mesh and the second Mesh are identical")]
+fn then_first_and_second_identical(world: &mut ApplyOceanQuotaWorld) {
+    let first = world.first_mesh.as_ref().expect("first Mesh not computed");
+    let second = world
+        .second_mesh
+        .as_ref()
+        .expect("second Mesh not computed");
+    assert_eq!(first, second);
 }
 
 #[then(regex = r"^the resulting Mesh has vertex radii ([0-9., ]+)$")]

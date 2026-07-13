@@ -64,3 +64,7 @@ Feature: Planet aggregate generation
   Scenario: A Planet generated with the Earthy preset has approximately its configured ocean quota's fraction of vertices at sea level
     Given a Planet generated with seed 11 and the Earthy preset at max depth 4
     Then the fraction of the resulting Planet's mesh vertices at its minimum vertex radius is within 0.05 of the Earthy preset's configured OceanQuota
+
+  Scenario: Generating a Planet with a preset that has no ocean quota never clusters vertices at a shared minimum radius
+    Given a Planet generated with seed 5 and the Volcano preset at max depth 4
+    Then the fraction of the resulting Planet's mesh vertices at its minimum vertex radius is less than 0.05
