@@ -62,6 +62,10 @@ fn log_error(message: &str) {
     web_sys::console::error_1(&message.into());
 }
 
+fn log_info(message: &str) {
+    web_sys::console::log_1(&message.into());
+}
+
 fn document() -> Option<Document> {
     let doc = web_sys::window().and_then(|window| window.document());
     if doc.is_none() {
@@ -220,17 +224,35 @@ fn generate(
         *last = (subdivided.mesh().clone(), subdivided.colors().to_vec());
     }
 
-    {
-        let mut frames_ref = frames.borrow_mut();
-        *frames_ref = (new_frames, 0);
-    }
-
-    if let Some(renderer) = renderer.borrow_mut().as_mut() {
-        let frames_ref = frames.borrow();
-        if let Some((mesh, colors)) = frames_ref.0.first() {
-            renderer.set_mesh(mesh, colors);
+    log_info("generate: about to borrow_mut frames to store new generation");
+    match frames.try_borrow_mut() {
+        Ok(mut frames_ref) => *frames_ref = (new_frames, 0),
+        Err(_) => {
+            log_error("generate: frames already borrowed when storing new generation");
+            return;
         }
     }
+    log_info("generate: stored new generation into frames");
+
+    log_info("generate: about to try_borrow_mut renderer to push first frame");
+    match renderer.try_borrow_mut() {
+        Ok(mut renderer_ref) => {
+            if let Some(renderer) = renderer_ref.as_mut() {
+                match frames.try_borrow() {
+                    Ok(frames_ref) => {
+                        if let Some((mesh, colors)) = frames_ref.0.first() {
+                            renderer.set_mesh(mesh, colors);
+                        }
+                    }
+                    Err(_) => {
+                        log_error("generate: frames already borrowed when reading first frame")
+                    }
+                }
+            }
+        }
+        Err(_) => log_error("generate: renderer already borrowed when pushing first frame"),
+    }
+    log_info("generate: done, requesting redraw");
 
     window.request_redraw();
 }
@@ -274,6 +296,7 @@ impl App {
             let frames = self.frames.clone();
             let window = window.clone();
             let closure = Closure::<dyn FnMut(Event)>::new(move |_event: Event| {
+                log_info("start-button click handler entered");
                 let document = &document_for_start;
 
                 let Some(preset_radio) = document
@@ -308,13 +331,21 @@ impl App {
 
                 let seed = seed_from_timestamp(js_sys::Date::now());
 
-                let renderer_ready = renderer.borrow().is_some();
+                let renderer_ready = match renderer.try_borrow() {
+                    Ok(guard) => guard.is_some(),
+                    Err(_) => {
+                        log_error("start-button: renderer already borrowed during readiness check");
+                        false
+                    }
+                };
                 if !renderer_ready {
                     log_error("renderer not ready yet; ignoring Start click");
                     return;
                 }
 
+                log_info("start-button: calling generate()");
                 generate(preset, depth, seed, &renderer, &frames, &window);
+                log_info("start-button: generate() returned, hiding controls");
 
                 if let Some(controls) = get_element(document, "controls") {
                     let _ = controls.set_attribute("hidden", "");
@@ -398,7 +429,10 @@ impl ApplicationHandler for App {
                     // ResizeObserver reports the real layout size) while the adapter/device
                     // were still negotiating; resync against the window's current size.
                     renderer.resize(size_probe.inner_size());
-                    *renderer_slot.borrow_mut() = Some(renderer);
+                    match renderer_slot.try_borrow_mut() {
+                        Ok(mut slot) => *slot = Some(renderer),
+                        Err(_) => log_error("renderer setup: renderer_slot already borrowed"),
+                    }
                     if let Some(document) = document() {
                         if let Some(start_button) = get_element(&document, "start-button") {
                             let _ = start_button.remove_attribute("disabled");
@@ -420,11 +454,14 @@ impl ApplicationHandler for App {
     ) {
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
-            WindowEvent::Resized(size) => {
-                if let Some(renderer) = self.renderer.borrow_mut().as_mut() {
-                    renderer.resize(size);
+            WindowEvent::Resized(size) => match self.renderer.try_borrow_mut() {
+                Ok(mut renderer_ref) => {
+                    if let Some(renderer) = renderer_ref.as_mut() {
+                        renderer.resize(size);
+                    }
                 }
-            }
+                Err(_) => log_error("resize: renderer already borrowed"),
+            },
             WindowEvent::MouseInput {
                 state,
                 button: MouseButton::Left,
@@ -465,19 +502,33 @@ impl ApplicationHandler for App {
                 }
             }
             WindowEvent::RedrawRequested => {
-                {
-                    let mut frames = self.frames.borrow_mut();
-                    let (frame_list, current_frame) = &mut *frames;
-                    if *current_frame + 1 < frame_list.len() {
-                        *current_frame += 1;
-                        if let Some(renderer) = self.renderer.borrow_mut().as_mut() {
-                            let (mesh, colors) = &frame_list[*current_frame];
-                            renderer.set_mesh(mesh, colors);
+                match self.frames.try_borrow_mut() {
+                    Ok(mut frames) => {
+                        let (frame_list, current_frame) = &mut *frames;
+                        if *current_frame + 1 < frame_list.len() {
+                            *current_frame += 1;
+                            match self.renderer.try_borrow_mut() {
+                                Ok(mut renderer_ref) => {
+                                    if let Some(renderer) = renderer_ref.as_mut() {
+                                        let (mesh, colors) = &frame_list[*current_frame];
+                                        renderer.set_mesh(mesh, colors);
+                                    }
+                                }
+                                Err(_) => log_error(
+                                    "redraw: renderer already borrowed while advancing frame",
+                                ),
+                            }
                         }
                     }
+                    Err(_) => log_error("redraw: frames already borrowed"),
                 }
-                if let Some(renderer) = self.renderer.borrow().as_ref() {
-                    renderer.render(&self.camera, self.wireframe);
+                match self.renderer.try_borrow() {
+                    Ok(renderer_ref) => {
+                        if let Some(renderer) = renderer_ref.as_ref() {
+                            renderer.render(&self.camera, self.wireframe);
+                        }
+                    }
+                    Err(_) => log_error("redraw: renderer already borrowed while rendering"),
                 }
                 if let Some(window) = &self.window {
                     window.request_redraw();
