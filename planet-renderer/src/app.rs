@@ -62,10 +62,6 @@ fn log_error(message: &str) {
     web_sys::console::error_1(&message.into());
 }
 
-fn log_info(message: &str) {
-    web_sys::console::log_1(&message.into());
-}
-
 fn document() -> Option<Document> {
     let doc = web_sys::window().and_then(|window| window.document());
     if doc.is_none() {
@@ -224,7 +220,6 @@ fn generate(
         *last = (subdivided.mesh().clone(), subdivided.colors().to_vec());
     }
 
-    log_info("generate: about to borrow_mut frames to store new generation");
     match frames.try_borrow_mut() {
         Ok(mut frames_ref) => *frames_ref = (new_frames, 0),
         Err(_) => {
@@ -232,9 +227,7 @@ fn generate(
             return;
         }
     }
-    log_info("generate: stored new generation into frames");
 
-    log_info("generate: about to try_borrow_mut renderer to push first frame");
     match renderer.try_borrow_mut() {
         Ok(mut renderer_ref) => {
             if let Some(renderer) = renderer_ref.as_mut() {
@@ -252,7 +245,6 @@ fn generate(
         }
         Err(_) => log_error("generate: renderer already borrowed when pushing first frame"),
     }
-    log_info("generate: done, requesting redraw");
 
     window.request_redraw();
 }
@@ -296,7 +288,6 @@ impl App {
             let frames = self.frames.clone();
             let window = window.clone();
             let closure = Closure::<dyn FnMut(Event)>::new(move |_event: Event| {
-                log_info("start-button click handler entered");
                 let document = &document_for_start;
 
                 let Some(preset_radio) = document
@@ -343,9 +334,7 @@ impl App {
                     return;
                 }
 
-                log_info("start-button: calling generate()");
                 generate(preset, depth, seed, &renderer, &frames, &window);
-                log_info("start-button: generate() returned, hiding controls");
 
                 if let Some(controls) = get_element(document, "controls") {
                     let _ = controls.set_attribute("hidden", "");
