@@ -42,8 +42,8 @@
 
       #preset-group {
         display: flex;
-        flex-direction: column;
-        gap: 0.5rem;
+        flex-direction: row;
+        gap: 0.75rem;
         border: none;
         padding: 0;
         margin: 0;
@@ -51,9 +51,26 @@
 
       .preset-option {
         display: flex;
+        flex-direction: column;
         align-items: center;
-        gap: 0.75rem;
+        text-align: center;
+        gap: 0.5rem;
+        width: 7rem;
+        padding: 0.75rem;
+        border-radius: 0.375rem;
         cursor: pointer;
+      }
+
+      .preset-option:has(input:checked) {
+        background: rgba(255, 255, 255, 0.08);
+      }
+
+      .preset-option input[type="radio"] {
+        position: absolute;
+        opacity: 0;
+        width: 1px;
+        height: 1px;
+        pointer-events: none;
       }
 
       .preset-image-placeholder {
