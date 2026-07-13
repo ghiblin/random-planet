@@ -1,5 +1,6 @@
 use crate::color::color_gradient::ColorGradient;
 use crate::color::rgb::Rgb;
+use crate::processor::ocean_quota::OceanQuota;
 use crate::subdivision::elevation_noise_range::ElevationNoiseRange;
 use crate::subdivision::min_edge_length::MinEdgeLength;
 use crate::subdivision::normal_noise_range::NormalNoiseRange;
@@ -81,6 +82,7 @@ impl Preset {
                         ), // snow cap
                     ],
                 },
+                Some(OceanQuota(0.4)),
             ),
             Preset::Volcano => PresetParams::new(
                 MinEdgeLength(0.25),
@@ -137,6 +139,7 @@ impl Preset {
                         ), // lava-yellow peak
                     ],
                 },
+                None,
             ),
             Preset::Rocky => PresetParams::new(
                 MinEdgeLength(0.3),
@@ -193,6 +196,7 @@ impl Preset {
                         ), // pale peak
                     ],
                 },
+                None,
             ),
         }
     }

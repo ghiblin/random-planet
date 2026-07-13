@@ -2,6 +2,7 @@ use cucumber::{World as _, given, then, when};
 use planet_core::color::color_gradient::ColorGradient;
 use planet_core::color::rgb::Rgb;
 use planet_core::presets::preset_params::PresetParams;
+use planet_core::processor::ocean_quota::OceanQuota;
 use planet_core::subdivision::elevation_noise_range::ElevationNoiseRange;
 use planet_core::subdivision::min_edge_length::MinEdgeLength;
 use planet_core::subdivision::normal_noise_range::NormalNoiseRange;
@@ -72,6 +73,7 @@ pub struct PresetParamsWorld {
         NormalNoiseRange,
         SplitPointVariance,
         ColorGradient,
+        Option<OceanQuota>,
     )>,
     params: Option<PresetParams>,
     params_pair: Option<(PresetParams, PresetParams)>,
@@ -96,7 +98,7 @@ fn parse_range(description: &str) -> (f32, f32) {
 }
 
 #[given(
-    regex = r"^a MinEdgeLength of (-?\d+(?:\.\d+)?), an ElevationNoiseRange of (low -?\d+(?:\.\d+)? and high -?\d+(?:\.\d+)?), a NormalNoiseRange of (low -?\d+(?:\.\d+)? and high -?\d+(?:\.\d+)?), a SplitPointVariance of (-?\d+(?:\.\d+)?), and a ColorGradient with stops at (.+)$"
+    regex = r"^a MinEdgeLength of (-?\d+(?:\.\d+)?), an ElevationNoiseRange of (low -?\d+(?:\.\d+)? and high -?\d+(?:\.\d+)?), a NormalNoiseRange of (low -?\d+(?:\.\d+)? and high -?\d+(?:\.\d+)?), a SplitPointVariance of (-?\d+(?:\.\d+)?), a ColorGradient with stops at (.+), and an OceanQuota of (-?\d+(?:\.\d+)?)$"
 )]
 fn given_fixture(
     world: &mut PresetParamsWorld,
@@ -105,6 +107,7 @@ fn given_fixture(
     normal_range: String,
     split_point_variance: f32,
     stops_description: String,
+    ocean_quota: f32,
 ) {
     let (elevation_low, elevation_high) = parse_range(&elevation_range);
     let (normal_low, normal_high) = parse_range(&normal_range);
@@ -115,10 +118,11 @@ fn given_fixture(
         NormalNoiseRange::new(normal_low, normal_high).expect("valid normal noise range fixture"),
         SplitPointVariance::new(split_point_variance).expect("valid split point variance fixture"),
         ColorGradient::new(parse_stops(&stops_description)).expect("valid color gradient fixture"),
+        Some(OceanQuota::new(ocean_quota).expect("valid ocean quota fixture")),
     ));
 }
 
-#[when("a PresetParams is constructed from those 5 values")]
+#[when("a PresetParams is constructed from those 6 values")]
 fn when_constructed(world: &mut PresetParamsWorld) {
     let (
         min_edge_length,
@@ -126,6 +130,7 @@ fn when_constructed(world: &mut PresetParamsWorld) {
         normal_noise_range,
         split_point_variance,
         color_gradient,
+        ocean_quota,
     ) = world.fixture.clone().expect("fixture not set");
     world.params = Some(PresetParams::new(
         min_edge_length,
@@ -133,10 +138,11 @@ fn when_constructed(world: &mut PresetParamsWorld) {
         normal_noise_range,
         split_point_variance,
         color_gradient,
+        ocean_quota,
     ));
 }
 
-#[when("two PresetParams are constructed from those same 5 values, separately")]
+#[when("two PresetParams are constructed from those same 6 values, separately")]
 fn when_constructed_twice(world: &mut PresetParamsWorld) {
     let (
         min_edge_length,
@@ -144,6 +150,7 @@ fn when_constructed_twice(world: &mut PresetParamsWorld) {
         normal_noise_range,
         split_point_variance,
         color_gradient,
+        ocean_quota,
     ) = world.fixture.clone().expect("fixture not set");
     let first = PresetParams::new(
         min_edge_length,
@@ -151,6 +158,7 @@ fn when_constructed_twice(world: &mut PresetParamsWorld) {
         normal_noise_range,
         split_point_variance,
         color_gradient.clone(),
+        ocean_quota,
     );
     let second = PresetParams::new(
         min_edge_length,
@@ -158,6 +166,7 @@ fn when_constructed_twice(world: &mut PresetParamsWorld) {
         normal_noise_range,
         split_point_variance,
         color_gradient,
+        ocean_quota,
     );
     world.params_pair = Some((first, second));
 }
@@ -197,6 +206,18 @@ fn then_color_gradient_samples(world: &mut PresetParamsWorld, elevation: f32, co
     let params = world.params.as_ref().expect("PresetParams not constructed");
     let expected = parse_color(&color_name);
     assert_eq!(params.color_gradient().sample(elevation), expected);
+}
+
+#[then(regex = r"^the PresetParams has an OceanQuota of (-?\d+(?:\.\d+)?)$")]
+fn then_ocean_quota(world: &mut PresetParamsWorld, value: f32) {
+    let params = world.params.as_ref().expect("PresetParams not constructed");
+    assert_eq!(
+        params
+            .ocean_quota()
+            .expect("PresetParams has no OceanQuota")
+            .value(),
+        value
+    );
 }
 
 #[then("the two PresetParams are identical")]

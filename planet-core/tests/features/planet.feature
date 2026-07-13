@@ -31,7 +31,7 @@ Feature: Planet aggregate generation
 
   Scenario: The optional progress callback reports the base mesh and every subdivision round
     Given a recording progress callback
-    When a Planet is generated with seed 9 and the Earthy preset at max depth 2 using that callback
+    When a Planet is generated with seed 9 and the Volcano preset at max depth 2 using that callback
     Then the progress callback was invoked 3 times
     And the progress callback's 1st invocation received round 0 with the base icosahedron mesh
     And the progress callback's 3rd invocation received round 2 with the resulting Planet's mesh
@@ -60,3 +60,11 @@ Feature: Planet aggregate generation
     When that Planet is subdivided to max depth 3
     Then the resulting Planet's max depth is 3
     And the resulting Planet's mesh is identical to a Planet generated with seed 1 and the Earthy preset at max depth 3
+
+  Scenario: A Planet generated with the Earthy preset has approximately its configured ocean quota's fraction of vertices at sea level
+    Given a Planet generated with seed 11 and the Earthy preset at max depth 4
+    Then the fraction of the resulting Planet's mesh vertices at its minimum vertex radius is within 0.05 of the Earthy preset's configured OceanQuota
+
+  Scenario: Generating a Planet with a preset that has no ocean quota never clusters vertices at a shared minimum radius
+    Given a Planet generated with seed 5 and the Volcano preset at max depth 4
+    Then the fraction of the resulting Planet's mesh vertices at its minimum vertex radius is less than 0.05

@@ -1,4 +1,5 @@
 use crate::color::color_gradient::ColorGradient;
+use crate::processor::ocean_quota::OceanQuota;
 use crate::subdivision::elevation_noise_range::ElevationNoiseRange;
 use crate::subdivision::min_edge_length::MinEdgeLength;
 use crate::subdivision::normal_noise_range::NormalNoiseRange;
@@ -11,6 +12,7 @@ pub struct PresetParams {
     normal_noise_range: NormalNoiseRange,
     split_point_variance: SplitPointVariance,
     color_gradient: ColorGradient,
+    ocean_quota: Option<OceanQuota>,
 }
 
 impl PresetParams {
@@ -20,6 +22,7 @@ impl PresetParams {
         normal_noise_range: NormalNoiseRange,
         split_point_variance: SplitPointVariance,
         color_gradient: ColorGradient,
+        ocean_quota: Option<OceanQuota>,
     ) -> PresetParams {
         PresetParams {
             min_edge_length,
@@ -27,6 +30,7 @@ impl PresetParams {
             normal_noise_range,
             split_point_variance,
             color_gradient,
+            ocean_quota,
         }
     }
 
@@ -48,5 +52,9 @@ impl PresetParams {
 
     pub fn color_gradient(&self) -> &ColorGradient {
         &self.color_gradient
+    }
+
+    pub fn ocean_quota(&self) -> Option<OceanQuota> {
+        self.ocean_quota
     }
 }

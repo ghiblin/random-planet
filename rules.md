@@ -38,12 +38,17 @@ file (naming, one-type-per-file) is enforced — not by an automated test.
   pre/post-processing steps that run outside the subdivision algorithm, each taking
   an already-built `Mesh` and returning a transformed one (`vertex_scramble_range.rs`
   (`VertexScrambleRange`, `VertexScrambleRangeError`), `vertex_scramble.rs`
-  (`scramble_vertices`)); plus the per-vertex `VertexOperator` building blocks
+  (`scramble_vertices`), `ocean_quota.rs` (`OceanQuota`, `OceanQuotaError`,
+  `apply_ocean_quota`)); plus the per-vertex `VertexOperator` building blocks
   `subdivision/strategies/` composes into a pipeline to compute each newly split
   vertex (`vertex_operator.rs` (`VertexOperator`, `pub(crate)`), `identity.rs`
   (`identity`, `pub(crate)`), `radial_displacement.rs` (`radial_displacement`,
   `MIN_VERTEX_RADIUS`, `pub(crate)`), `normal_displacement.rs`
-  (`normal_displacement`, `pub(crate)`), `compose.rs` (`compose`, `pub(crate)`))
+  (`normal_displacement`, `pub(crate)`), `compose.rs` (`compose`, `pub(crate)`));
+  plus the whole-mesh `MeshProcessor` building blocks `Planet::subdivide` composes
+  into its post-subdivision pipeline (`mesh_processor.rs` (`MeshProcessor`,
+  `pub(crate)`), `identity_mesh.rs` (`identity_mesh`, `pub(crate)`),
+  `compose_mesh.rs` (`compose_mesh`, `pub(crate)`))
 - `color/` — elevation-to-color mapping value types, no algorithm: `rgb.rs` (`Rgb`,
   `RgbError`), `color_gradient.rs` (`ColorGradient`, `ColorGradientError`)
 - `presets/` — bundles the subdivision/color knobs into named, pre-tuned presets:

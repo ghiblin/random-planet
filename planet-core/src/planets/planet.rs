@@ -3,6 +3,11 @@ use std::fmt;
 use crate::color::rgb::Rgb;
 use crate::geometry::mesh::{Mesh, MeshError};
 use crate::presets::preset::Preset;
+use crate::presets::preset_params::PresetParams;
+use crate::processor::compose_mesh::compose_mesh;
+use crate::processor::identity_mesh::identity_mesh;
+use crate::processor::mesh_processor::MeshProcessor;
+use crate::processor::ocean_quota::apply_ocean_quota;
 use crate::subdivision::seed::Seed;
 use crate::subdivision::steps::Steps;
 use crate::subdivision::subdivide::subdivide;
@@ -43,6 +48,17 @@ impl From<MeshError> for PlanetError {
     }
 }
 
+fn postprocessing_pipeline(params: &PresetParams) -> MeshProcessor {
+    let mut pipeline = identity_mesh();
+    if let Some(quota) = params.ocean_quota() {
+        pipeline = compose_mesh(
+            pipeline,
+            Box::new(move |mesh: &Mesh| apply_ocean_quota(mesh, quota)),
+        );
+    }
+    pipeline
+}
+
 impl Planet {
     pub fn builder() -> PlanetBuilder {
         PlanetBuilder::default()
@@ -70,6 +86,7 @@ impl Planet {
             on_progress,
         );
         let mesh = subdivide(&self.mesh, args)?;
+        let mesh = postprocessing_pipeline(&params)(&mesh)?;
         let colors = mesh
             .vertices()
             .iter()
