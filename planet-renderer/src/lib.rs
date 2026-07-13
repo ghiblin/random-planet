@@ -9,6 +9,8 @@ pub mod scene;
 pub fn start() -> Result<(), wasm_bindgen::JsValue> {
     use winit::platform::web::EventLoopExtWebSys;
 
+    console_error_panic_hook::set_once();
+
     let event_loop = winit::event_loop::EventLoop::new()
         .map_err(|error| wasm_bindgen::JsValue::from_str(&error.to_string()))?;
     event_loop.set_control_flow(winit::event_loop::ControlFlow::Poll);

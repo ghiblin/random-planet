@@ -25,5 +25,6 @@
 | `rand_pcg` | default | `planet-core` (seeded RNG — required for deterministic generation) |
 | `rand_distr` | default | `planet-core` (`StandardNormal` — Gaussian sampling; `rand`'s own `distr` module has no Gaussian sampler) |
 | `getrandom` | `wasm_js` | `planet-renderer` (wasm32-only — required for `rand`'s transitive `getrandom` dependency to build on `wasm32-unknown-unknown`) |
+| `console_error_panic_hook` | default | `planet-renderer` (wasm32-only — installed once at startup so panics print a real message/location to the browser console instead of a bare `unreachable` trap) |
 | `cucumber` | default | `planet-core`, `planet-renderer` (dev) |
 | `tokio` | `macros`, `rt-multi-thread` (dev-only) | `planet-core`, `planet-renderer` (dev — cucumber test harness) |
