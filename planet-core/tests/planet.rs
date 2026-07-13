@@ -332,6 +332,60 @@ fn then_max_depth_is(world: &mut PlanetWorld, max_depth: usize) {
     );
 }
 
+fn fraction_at_minimum_radius(planet: &Planet) -> f32 {
+    let radii: Vec<f32> = planet
+        .mesh()
+        .vertices()
+        .iter()
+        .map(|vertex| vertex.position.length())
+        .collect();
+    let min_radius = radii.iter().cloned().fold(f32::INFINITY, f32::min);
+    let at_min = radii
+        .iter()
+        .filter(|radius| (**radius - min_radius).abs() < 1e-4)
+        .count();
+    at_min as f32 / radii.len() as f32
+}
+
+#[then(
+    regex = r"^the fraction of the resulting Planet's mesh vertices at its minimum vertex radius is within (\d+(?:\.\d+)?) of the (Earthy|Volcano|Rocky) preset's configured OceanQuota$"
+)]
+fn then_ocean_quota_fraction_within_tolerance(
+    world: &mut PlanetWorld,
+    tolerance: f32,
+    preset_name: String,
+) {
+    let planet = world
+        .first_planet
+        .as_ref()
+        .expect("first Planet not generated");
+    let fraction = fraction_at_minimum_radius(planet);
+    let quota = parse_preset(&preset_name)
+        .params()
+        .ocean_quota()
+        .expect("preset has no OceanQuota")
+        .value();
+    assert!(
+        (fraction - quota).abs() <= tolerance,
+        "fraction at sea level {fraction} is not within {tolerance} of configured quota {quota}"
+    );
+}
+
+#[then(
+    regex = r"^the fraction of the resulting Planet's mesh vertices at its minimum vertex radius is less than (\d+(?:\.\d+)?)$"
+)]
+fn then_ocean_quota_fraction_below(world: &mut PlanetWorld, bound: f32) {
+    let planet = world
+        .first_planet
+        .as_ref()
+        .expect("first Planet not generated");
+    let fraction = fraction_at_minimum_radius(planet);
+    assert!(
+        fraction < bound,
+        "fraction at minimum radius {fraction} is not below {bound}"
+    );
+}
+
 #[tokio::main]
 async fn main() {
     PlanetWorld::cucumber()
