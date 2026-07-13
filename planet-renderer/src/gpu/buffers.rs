@@ -1,3 +1,4 @@
+use planet_core::color::rgb::Rgb;
 use planet_core::geometry::mesh::Mesh;
 use planet_core::geometry::vec3::Vec3;
 
@@ -5,9 +6,10 @@ use planet_core::geometry::vec3::Vec3;
 pub struct Vertex {
     pub position: [f32; 3],
     pub normal: [f32; 3],
+    pub color: [f32; 3],
 }
 
-pub fn mesh_render_vertices(mesh: &Mesh) -> Vec<Vertex> {
+pub fn mesh_render_vertices(mesh: &Mesh, colors: &[Rgb]) -> Vec<Vertex> {
     mesh.triangles()
         .iter()
         .flat_map(|triangle| {
@@ -20,10 +22,15 @@ pub fn mesh_render_vertices(mesh: &Mesh) -> Vec<Vertex> {
                 .normalized()
                 .unwrap_or(Vec3::new(0.0, 0.0, 0.0));
             let normal = [normal.x, normal.y, normal.z];
-            [a, b, c].into_iter().map(move |position| Vertex {
-                position: [position.x, position.y, position.z],
-                normal,
-            })
+            let corner_colors = [colors[triangle.a], colors[triangle.b], colors[triangle.c]];
+            [a, b, c]
+                .into_iter()
+                .zip(corner_colors)
+                .map(move |(position, color)| Vertex {
+                    position: [position.x, position.y, position.z],
+                    normal,
+                    color: [color.r(), color.g(), color.b()],
+                })
         })
         .collect()
 }
@@ -46,7 +53,12 @@ pub fn mesh_render_line_indices(mesh: &Mesh) -> Vec<u16> {
 pub fn pack_vertex_buffer(vertices: &[Vertex]) -> Vec<u8> {
     let mut bytes = Vec::with_capacity(std::mem::size_of_val(vertices));
     for vertex in vertices {
-        for component in vertex.position.iter().chain(vertex.normal.iter()) {
+        for component in vertex
+            .position
+            .iter()
+            .chain(vertex.normal.iter())
+            .chain(vertex.color.iter())
+        {
             bytes.extend_from_slice(&component.to_le_bytes());
         }
     }

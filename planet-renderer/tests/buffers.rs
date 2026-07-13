@@ -15,6 +15,7 @@ fn vertex_list(world: &mut BuffersWorld, count: usize) {
         Vertex {
             position: [0.0, 0.0, 0.0],
             normal: [0.0, 0.0, 1.0],
+            color: [0.0, 0.0, 0.0],
         };
         count
     ];

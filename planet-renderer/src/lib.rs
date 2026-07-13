@@ -1,5 +1,6 @@
 #[cfg(target_arch = "wasm32")]
 pub mod app;
+pub mod controls;
 pub mod gpu;
 pub mod scene;
 

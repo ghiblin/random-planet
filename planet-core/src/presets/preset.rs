@@ -17,6 +17,24 @@ pub enum Preset {
 }
 
 impl Preset {
+    pub const ALL: [Preset; 3] = [Preset::Earthy, Preset::Volcano, Preset::Rocky];
+
+    pub fn name(&self) -> &'static str {
+        match self {
+            Preset::Earthy => "Earthy",
+            Preset::Volcano => "Volcano",
+            Preset::Rocky => "Rocky",
+        }
+    }
+
+    pub fn description(&self) -> &'static str {
+        match self {
+            Preset::Earthy => "Oceans, grasslands, and snow-capped peaks.",
+            Preset::Volcano => "Charred basalt and glowing molten rock.",
+            Preset::Rocky => "Barren gray stone, no water or lava.",
+        }
+    }
+
     pub fn params(&self) -> PresetParams {
         match self {
             Preset::Earthy => PresetParams::new(
