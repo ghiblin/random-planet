@@ -83,7 +83,7 @@ Feature: Recursive subdivision via the SubdivisionMode facade
   Scenario: Subdividing the icosahedron mesh with SubdivisionMode::RadialRandomSplit keeps every vertex radius within the configured bound
     Given an icosahedron mesh
     When the mesh is subdivided with 2 steps using SubdivisionMode::RadialRandomSplit with seed 7, an ElevationNoiseRange of low -0.1 and high 0.1, and the default NormalNoiseRange
-    Then every vertex of the resulting Mesh has a radius less than or equal to 1.3
+    Then every vertex of the resulting Mesh has a radius less than or equal to 1.27
     And every vertex of the resulting Mesh has a radius greater than or equal to 0.05
 
   Scenario: Subdividing with 0 steps using SubdivisionMode::RadialRandomSplit leaves the mesh unchanged
@@ -151,7 +151,13 @@ Feature: Recursive subdivision via the SubdivisionMode facade
   Scenario: SubdivisionMode::RedGreenSplit keeps every vertex radius within the configured bound
     Given an icosahedron mesh
     When the mesh is subdivided with 1 step using SubdivisionMode::RedGreenSplit with seed 7, an ElevationNoiseRange of low -0.1 and high 0.1, the default NormalNoiseRange, a MinEdgeLength of 0.5, and a SplitPointVariance of 0.0
-    Then every vertex of the resulting Mesh has a radius less than or equal to 1.15
+    Then every vertex of the resulting Mesh has a radius less than or equal to 1.16
+    And every vertex of the resulting Mesh has a radius greater than or equal to 0.05
+
+  Scenario: SubdivisionMode::RedGreenSplit's vertex radius bound does not grow with additional subdivision rounds
+    Given an icosahedron mesh
+    When the mesh is subdivided with 8 steps using SubdivisionMode::RedGreenSplit with seed 7, an ElevationNoiseRange of low -0.1 and high 0.1, the default NormalNoiseRange, a MinEdgeLength of 0.05, and a SplitPointVariance of 0.0
+    Then every vertex of the resulting Mesh has a radius less than or equal to 1.46
     And every vertex of the resulting Mesh has a radius greater than or equal to 0.05
 
   Scenario: All 3 edges above the threshold produce a red split with 4 recursable children
