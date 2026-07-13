@@ -10,3 +10,9 @@ Feature: Converting a Mesh into wireframe line-list render indices
     Given an empty Mesh with no vertices and no triangles
     When the mesh is converted into wireframe line indices
     Then the wireframe line index list is empty
+
+  Scenario: Converting a Mesh with enough triangles to exceed u16's range produces correct line indices
+    Given a Mesh with 30000 triangles
+    When the mesh is converted into wireframe line indices
+    Then the wireframe line index list has 180000 indices
+    And the last wireframe line index is 89997

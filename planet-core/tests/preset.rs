@@ -7,6 +7,9 @@ pub struct PresetWorld {
     params: Option<PresetParams>,
     params_pair: Option<(PresetParams, PresetParams)>,
     preset: Option<Preset>,
+    all: Option<[Preset; 3]>,
+    names_requested: bool,
+    descriptions_requested: bool,
 }
 
 fn parse_preset(name: &str) -> Preset {
@@ -105,6 +108,42 @@ fn then_both_identical(world: &mut PresetWorld) {
         .as_ref()
         .expect("PresetParams pair not requested");
     assert_eq!(first, second);
+}
+
+#[when("Preset::ALL is requested")]
+fn when_all_requested(world: &mut PresetWorld) {
+    world.all = Some(Preset::ALL);
+}
+
+#[then("Preset::ALL equals Earthy, Volcano, Rocky in that order")]
+fn then_all_in_order(world: &mut PresetWorld) {
+    let all = world.all.expect("Preset::ALL not requested");
+    assert_eq!(all, [Preset::Earthy, Preset::Volcano, Preset::Rocky]);
+}
+
+#[when("each Preset's name is requested")]
+fn when_names_requested(world: &mut PresetWorld) {
+    world.names_requested = true;
+}
+
+#[then(regex = r#"^Preset::(Earthy|Volcano|Rocky)'s name is "([^"]+)"$"#)]
+fn then_name_is(world: &mut PresetWorld, name: String, expected: String) {
+    assert!(world.names_requested, "Preset names not requested");
+    assert_eq!(parse_preset(&name).name(), expected);
+}
+
+#[when("each Preset's description is requested")]
+fn when_descriptions_requested(world: &mut PresetWorld) {
+    world.descriptions_requested = true;
+}
+
+#[then(regex = r"^Preset::(Earthy|Volcano|Rocky)'s description is non-empty$")]
+fn then_description_non_empty(world: &mut PresetWorld, name: String) {
+    assert!(
+        world.descriptions_requested,
+        "Preset descriptions not requested"
+    );
+    assert!(!parse_preset(&name).description().is_empty());
 }
 
 #[tokio::main]

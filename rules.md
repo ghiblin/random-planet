@@ -62,6 +62,11 @@ file (naming, one-type-per-file) is enforced — not by an automated test.
 - `scene/` — `camera.rs` (`Camera`): orbit/zoom input math
 - `gpu/` — `buffers.rs`, `uniforms.rs`, `render.rs`, `shader.wgsl`: everything
   wgpu-facing — mesh/preset-to-GPU-data mapping and the actual device/pipeline/draw calls
+- `controls/` — `preset_select.rs` (`parse_preset`), `depth_slider.rs` (`MIN_DEPTH`,
+  `MAX_DEPTH`, `DepthParseError`, `parse_depth`), `seed_from_timestamp.rs`
+  (`seed_from_timestamp`): pure DOM-value parsing/validation and timestamp-to-seed
+  conversion, no browser API calls — the actual element lookups/listeners/clock reads
+  stay in `app.rs`
 - `app.rs` (top-level) — winit event loop, wasm-bindgen entry point, HTML control wiring
 
 Adding a new type: put it in the file for its existing concern if one fits; only

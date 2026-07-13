@@ -13,6 +13,8 @@
         width: 100%;
         height: 100%;
         background: #0d0d12;
+        color: #e6e6ea;
+        font-family: sans-serif;
       }
 
       canvas {
@@ -20,7 +22,97 @@
         width: 100vw;
         height: 100vh;
       }
+
+      #controls,
+      #change-settings-button,
+      #error-modal {
+        position: fixed;
+      }
+
+      #controls {
+        top: 1.5rem;
+        left: 1.5rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        padding: 1rem;
+        background: rgba(13, 13, 18, 0.85);
+        border-radius: 0.5rem;
+      }
+
+      #preset-group {
+        display: flex;
+        flex-direction: row;
+        gap: 0.75rem;
+        border: none;
+        padding: 0;
+        margin: 0;
+      }
+
+      .preset-option {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: 0.5rem;
+        width: 7rem;
+        padding: 0.75rem;
+        border-radius: 0.375rem;
+        cursor: pointer;
+      }
+
+      .preset-option:has(input:checked) {
+        background: rgba(255, 255, 255, 0.08);
+      }
+
+      .preset-option input[type="radio"] {
+        position: absolute;
+        opacity: 0;
+        width: 1px;
+        height: 1px;
+        pointer-events: none;
+      }
+
+      .preset-image-placeholder {
+        width: 3rem;
+        height: 3rem;
+        border: 1px dashed #666;
+        background: #1a1a22;
+        flex-shrink: 0;
+      }
+
+      .preset-label {
+        font-weight: bold;
+      }
+
+      .preset-description {
+        font-size: 0.85rem;
+        color: #b0b0b8;
+      }
+
+      #change-settings-button {
+        top: 1.5rem;
+        left: 1.5rem;
+      }
     </style>
   </head>
-  <body></body>
+  <body>
+    <div id="controls">
+      <fieldset id="preset-group">
+        <legend>Preset</legend>
+      </fieldset>
+
+      <label for="depth-slider">Depth (<span id="depth-value"></span>)</label>
+      <input id="depth-slider" type="range" step="1" />
+
+      <button id="start-button" type="button" disabled>Start</button>
+    </div>
+
+    <button id="change-settings-button" type="button" hidden>Change settings</button>
+
+    <dialog id="error-modal">
+      <p id="error-modal-message"></p>
+      <button id="error-modal-dismiss" type="button">OK</button>
+    </dialog>
+  </body>
 </html>

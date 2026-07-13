@@ -4,7 +4,7 @@ use planet_renderer::gpu::buffers::{Vertex, pack_index_buffer, pack_vertex_buffe
 #[derive(Debug, Default, cucumber::World)]
 pub struct BuffersWorld {
     vertices: Vec<Vertex>,
-    indices: Vec<u16>,
+    indices: Vec<u32>,
     vertex_buffer: Vec<u8>,
     index_buffer: Vec<u8>,
 }
@@ -15,13 +15,14 @@ fn vertex_list(world: &mut BuffersWorld, count: usize) {
         Vertex {
             position: [0.0, 0.0, 0.0],
             normal: [0.0, 0.0, 1.0],
+            color: [0.0, 0.0, 0.0],
         };
         count
     ];
 }
 
 #[given(regex = r"^an index list with (\d+) indices$")]
-fn index_list(world: &mut BuffersWorld, count: u16) {
+fn index_list(world: &mut BuffersWorld, count: u32) {
     world.indices = (0..count).collect();
 }
 
@@ -48,7 +49,7 @@ fn assert_vertex_buffer_len(world: &mut BuffersWorld) {
 
 #[then("the buffer's byte length equals the index count times the index size")]
 fn assert_index_buffer_len(world: &mut BuffersWorld) {
-    let size = std::mem::size_of::<u16>();
+    let size = std::mem::size_of::<u32>();
     assert_eq!(world.index_buffer.len(), world.indices.len() * size);
 }
 

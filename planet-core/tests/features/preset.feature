@@ -46,3 +46,19 @@ Feature: Selecting a Preset's parameters
   Scenario: The default Preset is Earthy
     Given the default Preset
     Then the Preset equals Preset::Earthy
+
+  Scenario: Preset::ALL lists all three presets in a fixed order
+    When Preset::ALL is requested
+    Then Preset::ALL equals Earthy, Volcano, Rocky in that order
+
+  Scenario: Every Preset has a human-readable name
+    When each Preset's name is requested
+    Then Preset::Earthy's name is "Earthy"
+    And Preset::Volcano's name is "Volcano"
+    And Preset::Rocky's name is "Rocky"
+
+  Scenario: Every Preset has a non-empty description
+    When each Preset's description is requested
+    Then Preset::Earthy's description is non-empty
+    And Preset::Volcano's description is non-empty
+    And Preset::Rocky's description is non-empty

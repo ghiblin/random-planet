@@ -3,6 +3,7 @@ use std::sync::Arc;
 use wgpu::util::DeviceExt;
 use winit::window::Window;
 
+use planet_core::color::rgb::Rgb;
 use planet_core::geometry::mesh::Mesh;
 
 use super::buffers::{
@@ -35,7 +36,7 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub async fn new(window: Arc<Window>, mesh: &Mesh) -> Result<Self, String> {
+    pub async fn new(window: Arc<Window>, mesh: &Mesh, colors: &[Rgb]) -> Result<Self, String> {
         let size = window.inner_size();
         let instance = wgpu::Instance::default();
 
@@ -64,7 +65,7 @@ impl Renderer {
         let surface_format = config.format;
         surface.configure(&device, &config);
 
-        let vertex_bytes = pack_vertex_buffer(&mesh_render_vertices(mesh));
+        let vertex_bytes = pack_vertex_buffer(&mesh_render_vertices(mesh, colors));
         let index_list = mesh_render_indices(mesh);
         let index_bytes = pack_index_buffer(&index_list);
         let line_index_list = mesh_render_line_indices(mesh);
@@ -128,7 +129,7 @@ impl Renderer {
         });
 
         let vertex_layout = wgpu::VertexBufferLayout {
-            array_stride: 24,
+            array_stride: 36,
             step_mode: wgpu::VertexStepMode::Vertex,
             attributes: &[
                 wgpu::VertexAttribute {
@@ -140,6 +141,11 @@ impl Renderer {
                     format: wgpu::VertexFormat::Float32x3,
                     offset: 12,
                     shader_location: 1,
+                },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x3,
+                    offset: 24,
+                    shader_location: 2,
                 },
             ],
         };
@@ -239,8 +245,8 @@ impl Renderer {
 
     /// Rebuilds the mesh-derived GPU buffers (vertex, triangle-list index, line-list index)
     /// to match a newly given `Mesh` — used when subdivision advances by one step.
-    pub fn set_mesh(&mut self, mesh: &Mesh) {
-        let vertex_bytes = pack_vertex_buffer(&mesh_render_vertices(mesh));
+    pub fn set_mesh(&mut self, mesh: &Mesh, colors: &[Rgb]) {
+        let vertex_bytes = pack_vertex_buffer(&mesh_render_vertices(mesh, colors));
         let index_list = mesh_render_indices(mesh);
         let index_bytes = pack_index_buffer(&index_list);
         let line_index_list = mesh_render_line_indices(mesh);
@@ -346,11 +352,17 @@ impl Renderer {
                 (&self.pipeline, &self.index_buffer, self.index_count)
             };
 
-            pass.set_pipeline(pipeline);
-            pass.set_bind_group(0, &self.uniform_bind_group, &[]);
-            pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-            pass.draw_indexed(0..index_count, 0, 0..1);
+            // Nothing to draw yet (e.g. before any Planet has been generated, when
+            // the mesh is empty) — an empty vertex/index buffer can't be sliced, so
+            // skip the draw call entirely; the render pass above still clears the
+            // background.
+            if index_count > 0 {
+                pass.set_pipeline(pipeline);
+                pass.set_bind_group(0, &self.uniform_bind_group, &[]);
+                pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+                pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+                pass.draw_indexed(0..index_count, 0, 0..1);
+            }
         }
 
         self.queue.submit(Some(encoder.finish()));

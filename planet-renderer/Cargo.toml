@@ -30,11 +30,32 @@ harness = false
 name = "mesh_render_line_indices"
 harness = false
 
+[[test]]
+name = "preset_select"
+harness = false
+
+[[test]]
+name = "depth_slider"
+harness = false
+
+[[test]]
+name = "seed_from_timestamp"
+harness = false
+
 [dependencies]
 planet-core = { path = "../planet-core" }
+js-sys = "0.3.103"
 wasm-bindgen = "0.2.126"
 wasm-bindgen-futures = "0.4.76"
-web-sys = { version = "0.3.103", features = ["console"] }
+web-sys = { version = "0.3.103", features = [
+    "console",
+    "Document",
+    "Element",
+    "Node",
+    "EventTarget",
+    "HtmlInputElement",
+    "HtmlDialogElement",
+] }
 wgpu = "30.0.0"
 winit = "0.30.13"
 
@@ -42,6 +63,9 @@ winit = "0.30.13"
 # planet-core's `rand`/`rand_pcg` pull in `getrandom`, which needs this feature
 # to build for wasm32-unknown-unknown at all (native builds don't need it).
 getrandom = { version = "0.4.3", features = ["wasm_js"] }
+# Surfaces real panic messages/locations in the browser console instead of a bare
+# "unreachable" trap — installed once at wasm startup in `lib.rs::start`.
+console_error_panic_hook = "0.1.7"
 
 [dev-dependencies]
 cucumber.workspace = true

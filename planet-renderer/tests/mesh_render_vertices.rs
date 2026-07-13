@@ -1,4 +1,5 @@
 use cucumber::{World as _, given, then, when};
+use planet_core::color::rgb::Rgb;
 use planet_core::geometry::mesh::{Mesh, Triangle, Vertex as CoreVertex};
 use planet_core::geometry::vec3::Vec3;
 use planet_renderer::gpu::buffers::{Vertex, mesh_render_vertices};
@@ -8,6 +9,7 @@ pub struct MeshRenderVerticesWorld {
     vertices: Vec<CoreVertex>,
     triangles: Vec<Triangle>,
     mesh: Option<Mesh>,
+    colors: Vec<Rgb>,
     render_vertices: Vec<Vertex>,
 }
 
@@ -36,13 +38,37 @@ fn given_empty_mesh(world: &mut MeshRenderVerticesWorld) {
     world.mesh = Some(Mesh::new(vec![], vec![]).expect("mesh construction failed"));
 }
 
+#[given("a distinct Rgb color for each of the mesh's vertices")]
+fn given_distinct_colors(world: &mut MeshRenderVerticesWorld) {
+    let mesh = world.mesh.as_ref().expect("mesh not set");
+    let count = mesh.vertices().len();
+    world.colors = (0..count)
+        .map(|i| {
+            Rgb::new(
+                i as f32 / (count - 1).max(1) as f32,
+                0.5,
+                1.0 - i as f32 / (count - 1).max(1) as f32,
+            )
+            .expect("valid Rgb fixture")
+        })
+        .collect();
+}
+
 #[when("the mesh is converted into render vertices")]
 fn when_converted(world: &mut MeshRenderVerticesWorld) {
     let mesh = world.mesh.take().unwrap_or_else(|| {
         Mesh::new(world.vertices.clone(), world.triangles.clone())
             .expect("mesh construction failed")
     });
-    world.render_vertices = mesh_render_vertices(&mesh);
+    let colors = vec![Rgb::new(1.0, 1.0, 1.0).expect("valid Rgb fixture"); mesh.vertices().len()];
+    world.render_vertices = mesh_render_vertices(&mesh, &colors);
+    world.mesh = Some(mesh);
+}
+
+#[when("the mesh is converted into render vertices using those colors")]
+fn when_converted_with_colors(world: &mut MeshRenderVerticesWorld) {
+    let mesh = world.mesh.take().expect("mesh not set");
+    world.render_vertices = mesh_render_vertices(&mesh, &world.colors);
     world.mesh = Some(mesh);
 }
 
@@ -90,6 +116,20 @@ fn then_no_panic(world: &mut MeshRenderVerticesWorld) {
 fn then_zero_normal(world: &mut MeshRenderVerticesWorld) {
     for vertex in &world.render_vertices {
         assert_eq!(vertex.normal, [0.0, 0.0, 0.0]);
+    }
+}
+
+#[then("each render vertex's color equals its source vertex's Rgb")]
+fn then_color_matches_source(world: &mut MeshRenderVerticesWorld) {
+    let mesh = world.mesh.as_ref().expect("mesh not set");
+    for (triangle, render_verts) in mesh.triangles().iter().zip(world.render_vertices.chunks(3)) {
+        let expected = [triangle.a, triangle.b, triangle.c].map(|i| world.colors[i]);
+        for (render_vertex, expected_color) in render_verts.iter().zip(expected) {
+            assert_eq!(
+                render_vertex.color,
+                [expected_color.r(), expected_color.g(), expected_color.b()]
+            );
+        }
     }
 }
 
