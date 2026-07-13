@@ -352,11 +352,17 @@ impl Renderer {
                 (&self.pipeline, &self.index_buffer, self.index_count)
             };
 
-            pass.set_pipeline(pipeline);
-            pass.set_bind_group(0, &self.uniform_bind_group, &[]);
-            pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-            pass.draw_indexed(0..index_count, 0, 0..1);
+            // Nothing to draw yet (e.g. before any Planet has been generated, when
+            // the mesh is empty) — an empty vertex/index buffer can't be sliced, so
+            // skip the draw call entirely; the render pass above still clears the
+            // background.
+            if index_count > 0 {
+                pass.set_pipeline(pipeline);
+                pass.set_bind_group(0, &self.uniform_bind_group, &[]);
+                pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+                pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+                pass.draw_indexed(0..index_count, 0, 0..1);
+            }
         }
 
         self.queue.submit(Some(encoder.finish()));
