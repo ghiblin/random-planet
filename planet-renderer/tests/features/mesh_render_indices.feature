@@ -9,3 +9,9 @@ Feature: Converting a Mesh into render indices
     Given an empty Mesh with no vertices and no triangles
     When the mesh is converted into render indices
     Then the render index list is empty
+
+  Scenario: Converting a Mesh with enough triangles to exceed u16's range produces correct indices
+    Given a Mesh with 30000 triangles
+    When the mesh is converted into render indices
+    Then the render index list has 90000 indices
+    And the last render index is 89999
