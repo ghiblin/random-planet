@@ -35,16 +35,16 @@ pub fn mesh_render_vertices(mesh: &Mesh, colors: &[Rgb]) -> Vec<Vertex> {
         .collect()
 }
 
-pub fn mesh_render_indices(mesh: &Mesh) -> Vec<u16> {
+pub fn mesh_render_indices(mesh: &Mesh) -> Vec<u32> {
     (0..3 * mesh.triangles().len())
-        .map(|index| index as u16)
+        .map(|index| index as u32)
         .collect()
 }
 
-pub fn mesh_render_line_indices(mesh: &Mesh) -> Vec<u16> {
+pub fn mesh_render_line_indices(mesh: &Mesh) -> Vec<u32> {
     (0..mesh.triangles().len())
         .flat_map(|i| {
-            let base = 3 * i as u16;
+            let base = (3 * i) as u32;
             [base, base + 1, base + 1, base + 2, base + 2, base]
         })
         .collect()
@@ -65,7 +65,7 @@ pub fn pack_vertex_buffer(vertices: &[Vertex]) -> Vec<u8> {
     bytes
 }
 
-pub fn pack_index_buffer(indices: &[u16]) -> Vec<u8> {
+pub fn pack_index_buffer(indices: &[u32]) -> Vec<u8> {
     let mut bytes = Vec::with_capacity(std::mem::size_of_val(indices));
     for index in indices {
         bytes.extend_from_slice(&index.to_le_bytes());
