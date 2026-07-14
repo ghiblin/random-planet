@@ -1,16 +1,24 @@
+use super::seed::Seed;
 use super::strategies::uniform_red_split::UniformRedSplit;
 use super::subdivide::SubdivisionStrategy;
 
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SubdivisionMode {
-    #[default]
-    UniformRedSplit,
+    UniformRedSplit { seed: Seed },
+}
+
+impl Default for SubdivisionMode {
+    fn default() -> SubdivisionMode {
+        SubdivisionMode::UniformRedSplit {
+            seed: Seed::default(),
+        }
+    }
 }
 
 impl SubdivisionMode {
     pub(crate) fn strategy(&self) -> Box<dyn SubdivisionStrategy> {
         match self {
-            SubdivisionMode::UniformRedSplit => Box::new(UniformRedSplit::new()),
+            SubdivisionMode::UniformRedSplit { seed } => Box::new(UniformRedSplit::new(*seed)),
         }
     }
 }

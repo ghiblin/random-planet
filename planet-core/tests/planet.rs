@@ -160,6 +160,16 @@ fn then_mesh_identical_to_icosahedron(world: &mut PlanetWorld) {
     assert_eq!(*planet.mesh(), icosahedron);
 }
 
+#[then("the resulting Planet's mesh is not identical to the icosahedron mesh")]
+fn then_mesh_not_identical_to_icosahedron(world: &mut PlanetWorld) {
+    let planet = world
+        .first_planet
+        .as_ref()
+        .expect("first Planet not generated");
+    let icosahedron = Mesh::icosahedron().expect("Mesh::icosahedron() failed");
+    assert_ne!(*planet.mesh(), icosahedron);
+}
+
 #[then(regex = r"^the resulting Planet has exactly (\d+) colors?$")]
 fn then_color_count(world: &mut PlanetWorld, count: usize) {
     let planet = world
@@ -289,7 +299,10 @@ fn then_callback_invocation_base_mesh(world: &mut PlanetWorld, index: usize, rou
     let icosahedron = Mesh::icosahedron().expect("Mesh::icosahedron() failed");
     let invocations = world.invocations();
     let (mesh, actual_round) = &invocations[index - 1];
-    assert_eq!(*mesh, icosahedron);
+    // The base mesh's positions are scrambled by `PlanetBuilder::build()`, but its
+    // topology (vertex count, triangle indices) still matches a pristine icosahedron.
+    assert_eq!(mesh.vertices().len(), icosahedron.vertices().len());
+    assert_eq!(mesh.triangles(), icosahedron.triangles());
     assert_eq!(*actual_round, round);
 }
 
