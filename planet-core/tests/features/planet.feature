@@ -52,13 +52,17 @@ Feature: Planet aggregate generation
     Given a Planet built with no fields set
     Then the resulting Planet's preset is Earthy
     And the resulting Planet's seed is 0
-    And the resulting Planet's mesh is identical to the icosahedron mesh
+    And the resulting Planet's mesh has 12 vertices
+    And the resulting Planet's mesh has the same triangles as the icosahedron mesh
+    And the resulting Planet's mesh is not identical to the icosahedron mesh
     And the resulting Planet has no max depth set
 
   Scenario: Creating a Planet does not subdivide it
     Given a Planet created with the Earthy preset and seed 1
     Then the resulting Planet's seed is 1
-    And the resulting Planet's mesh is identical to the icosahedron mesh
+    And the resulting Planet's mesh has 12 vertices
+    And the resulting Planet's mesh has the same triangles as the icosahedron mesh
+    And the resulting Planet's mesh is not identical to the icosahedron mesh
     And the resulting Planet has no max depth set
 
   Scenario: Subdividing a created Planet produces a new Planet at the requested max depth

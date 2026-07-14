@@ -47,14 +47,16 @@ fn given_icosahedron(world: &mut ApplyTerrainNoiseWorld) {
 }
 
 #[given(
-    regex = r"^an icosahedron mesh subdivided (\d+) steps with SubdivisionMode::UniformRedSplit$"
+    regex = r"^an icosahedron mesh subdivided (\d+) steps with SubdivisionMode::UniformRedSplit and seed (\d+)$"
 )]
-fn given_subdivided_icosahedron(world: &mut ApplyTerrainNoiseWorld, steps: usize) {
+fn given_subdivided_icosahedron(world: &mut ApplyTerrainNoiseWorld, steps: usize, seed: u64) {
     let base = Mesh::icosahedron().expect("Mesh::icosahedron() failed");
     world.icosahedron_mesh = Some(base.clone());
     let args = SubdivisionArgs::new(
         Some(planet_core::subdivision::steps::Steps::new(steps).expect("valid steps fixture")),
-        Some(SubdivisionMode::UniformRedSplit),
+        Some(SubdivisionMode::UniformRedSplit {
+            seed: Seed::from(seed),
+        }),
         None,
     );
     world.subdivided_mesh = Some(subdivide(&base, args).expect("subdivide failed"));

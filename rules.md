@@ -28,8 +28,10 @@ file (naming, one-type-per-file) is enforced — not by an automated test.
   (`SubdivisionStrategy` `pub(crate)`, `subdivide`); plus a nested `strategies/`
   sub-concern (`uniform_red_split.rs`, `pub(crate)` — exposed publicly only via
   `SubdivisionMode`, never directly) for the concrete subdivision-algorithm
-  implementation: uniform, exact-midpoint geodesic subdivision, with no
-  elevation/displacement logic of its own — elevation lives entirely in
+  implementation: uniform, near-exact-midpoint geodesic subdivision (each new
+  split vertex is nudged tangentially along its edge and along the edge's normal,
+  proportional to that edge's current length, via `processor/jitter.rs`'s
+  `VertexOperator`) — radial elevation still lives entirely in
   `processor/terrain_noise.rs` as a post-subdivision whole-mesh step
 - `processor/` — reusable vertex- and mesh-transformation building blocks: whole-mesh
   pre/post-processing steps that run outside the subdivision algorithm, each taking
@@ -41,7 +43,9 @@ file (naming, one-type-per-file) is enforced — not by an automated test.
   direction and reshapes it with a redistribution curve and optional terracing);
   plus the per-vertex `VertexOperator` building blocks `subdivision/strategies/`
   composes into a pipeline to compute each newly split vertex (`vertex_operator.rs`
-  (`VertexOperator`, `pub(crate)`), `identity.rs` (`identity`, `pub(crate)`));
+  (`VertexOperator`, `pub(crate)`), `jitter.rs` (`jitter`, `pub(crate)` — displaces
+  a split point tangentially along its edge and along the edge's normal, each
+  magnitude proportional to the edge's current length));
   plus the whole-mesh `MeshProcessor` building blocks `Planet::subdivide` composes
   into its post-subdivision pipeline (`mesh_processor.rs` (`MeshProcessor`,
   `pub(crate)`), `identity_mesh.rs` (`identity_mesh`, `pub(crate)`),
@@ -53,7 +57,8 @@ file (naming, one-type-per-file) is enforced — not by an automated test.
 - `planets/` — the aggregate root, split into its two lifecycle operations:
   `planet.rs` (`Planet` — including its `subdivide` method, `PlanetError`,
   `GenerationProgress`), `planet_builder.rs` (`PlanetBuilder` — creation only,
-  no subdivision)
+  no subdivision; scrambles the icosahedron's base vertices via
+  `processor/vertex_scramble.rs`'s `scramble_vertices` before storing the mesh)
 
 `planet-renderer`'s concerns:
 - `scene/` — `camera.rs` (`Camera`): orbit/zoom input math

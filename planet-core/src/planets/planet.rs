@@ -81,7 +81,7 @@ impl Planet {
         }
         let args = SubdivisionArgs::new(
             Some(max_depth),
-            Some(SubdivisionMode::UniformRedSplit),
+            Some(SubdivisionMode::UniformRedSplit { seed: self.seed }),
             on_progress,
         );
         let mesh = subdivide(&self.mesh, args)?;
