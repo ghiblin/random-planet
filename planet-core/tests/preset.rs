@@ -42,34 +42,10 @@ fn then_preset_equals(world: &mut PresetWorld, name: String) {
     assert_eq!(world.preset.expect("Preset not set"), parse_preset(&name));
 }
 
-#[then(regex = r"^the PresetParams has a MinEdgeLength of (-?\d+(?:\.\d+)?)$")]
-fn then_min_edge_length(world: &mut PresetWorld, value: f32) {
+#[then(regex = r"^the PresetParams has a TerrainNoise with amplitude (-?\d+(?:\.\d+)?)$")]
+fn then_terrain_noise(world: &mut PresetWorld, value: f32) {
     let params = world.params.as_ref().expect("PresetParams not requested");
-    assert_eq!(params.min_edge_length().value(), value);
-}
-
-#[then(
-    regex = r"^the PresetParams has an ElevationNoiseRange of low (-?\d+(?:\.\d+)?) and high (-?\d+(?:\.\d+)?)$"
-)]
-fn then_elevation_noise_range(world: &mut PresetWorld, low: f32, high: f32) {
-    let params = world.params.as_ref().expect("PresetParams not requested");
-    assert_eq!(params.elevation_noise_range().low(), low);
-    assert_eq!(params.elevation_noise_range().high(), high);
-}
-
-#[then(
-    regex = r"^the PresetParams has a NormalNoiseRange of low (-?\d+(?:\.\d+)?) and high (-?\d+(?:\.\d+)?)$"
-)]
-fn then_normal_noise_range(world: &mut PresetWorld, low: f32, high: f32) {
-    let params = world.params.as_ref().expect("PresetParams not requested");
-    assert_eq!(params.normal_noise_range().low(), low);
-    assert_eq!(params.normal_noise_range().high(), high);
-}
-
-#[then(regex = r"^the PresetParams has a SplitPointVariance of (-?\d+(?:\.\d+)?)$")]
-fn then_split_point_variance(world: &mut PresetWorld, value: f32) {
-    let params = world.params.as_ref().expect("PresetParams not requested");
-    assert_eq!(params.split_point_variance().value(), value);
+    assert_eq!(params.terrain_noise().amplitude(), value);
 }
 
 #[then(

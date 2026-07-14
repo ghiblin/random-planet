@@ -17,24 +17,30 @@ Feature: Planet aggregate generation
 
   Scenario: Generating a Planet keeps every vertex radius within the preset's configured bound
     Given a Planet generated with seed 3 and the Rocky preset at max depth 2
-    Then every vertex of the resulting Planet's mesh has a radius less than or equal to 1.4
-    And every vertex of the resulting Planet's mesh has a radius greater than or equal to 0.05
+    Then every vertex of the resulting Planet's mesh has a radius less than or equal to 1.22
+    And every vertex of the resulting Planet's mesh has a radius greater than or equal to 0.78
 
-  Scenario: A Planet generated at zero max depth is exactly the base icosahedron, colored
+  Scenario: A Planet generated at zero max depth keeps the icosahedron's topology, shaped by terrain noise
     Given a Planet generated with seed 1 and the Earthy preset at max depth 0
-    Then the resulting Planet's mesh is identical to the icosahedron mesh
+    Then the resulting Planet's mesh has 12 vertices
+    And the resulting Planet's mesh has the same triangles as the icosahedron mesh
     And the resulting Planet has exactly 12 colors
 
-  Scenario: Subdivision depth is honored as a hard cap regardless of the preset's min edge length
+  Scenario: Subdivision depth deterministically produces the full geodesic triangle count for every preset
     Given a Planet generated with seed 5 and the Volcano preset at max depth 8
-    Then the resulting Planet's mesh has no more triangles than 8 rounds of subdivision can produce from an icosahedron
+    Then the resulting Planet's mesh has exactly 1310720 triangles
+
+  Scenario: Increasing subdivision depth beyond 3 keeps growing an Earthy planet's mesh
+    Given a Planet generated with seed 42 and the Earthy preset at max depth 3
+    When another Planet is generated with seed 42 and the Earthy preset at max depth 5
+    Then the second Planet's mesh has more vertices than the first Planet's mesh
 
   Scenario: The optional progress callback reports the base mesh and every subdivision round
     Given a recording progress callback
     When a Planet is generated with seed 9 and the Volcano preset at max depth 2 using that callback
     Then the progress callback was invoked 3 times
     And the progress callback's 1st invocation received round 0 with the base icosahedron mesh
-    And the progress callback's 3rd invocation received round 2 with the resulting Planet's mesh
+    And the progress callback's 3rd invocation received a Mesh with 320 triangles
 
   Scenario: The optional progress callback still reports the base mesh at zero max depth
     Given a recording progress callback
@@ -65,6 +71,6 @@ Feature: Planet aggregate generation
     Given a Planet generated with seed 11 and the Earthy preset at max depth 4
     Then the fraction of the resulting Planet's mesh vertices at its minimum vertex radius is within 0.05 of the Earthy preset's configured OceanQuota
 
-  Scenario: Generating a Planet with a preset that has no ocean quota never clusters vertices at a shared minimum radius
+  Scenario: A Planet generated with a preset carrying terrace levels has vertex radii clustered at a bounded number of distinct values
     Given a Planet generated with seed 5 and the Volcano preset at max depth 4
-    Then the fraction of the resulting Planet's mesh vertices at its minimum vertex radius is less than 0.05
+    Then the resulting Planet's mesh has at most 6 distinct vertex radii, within floating-point tolerance
