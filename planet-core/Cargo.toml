@@ -32,27 +32,11 @@ name = "seed"
 harness = false
 
 [[test]]
-name = "elevation_noise_range"
-harness = false
-
-[[test]]
-name = "min_edge_length"
-harness = false
-
-[[test]]
-name = "split_point_variance"
-harness = false
-
-[[test]]
 name = "vertex_scramble_range"
 harness = false
 
 [[test]]
 name = "vertex_scramble"
-harness = false
-
-[[test]]
-name = "normal_noise_range"
 harness = false
 
 [[test]]
@@ -83,9 +67,17 @@ harness = false
 name = "apply_ocean_quota"
 harness = false
 
+[[test]]
+name = "terrain_noise"
+harness = false
+
+[[test]]
+name = "apply_terrain_noise"
+harness = false
+
 [dependencies]
+noise = "0.9"
 rand = "0.10.2"
-rand_distr = "0.6.0"
 rand_pcg = "0.10.2"
 
 [dev-dependencies]

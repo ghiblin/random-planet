@@ -3,10 +3,7 @@ use planet_core::color::color_gradient::ColorGradient;
 use planet_core::color::rgb::Rgb;
 use planet_core::presets::preset_params::PresetParams;
 use planet_core::processor::ocean_quota::OceanQuota;
-use planet_core::subdivision::elevation_noise_range::ElevationNoiseRange;
-use planet_core::subdivision::min_edge_length::MinEdgeLength;
-use planet_core::subdivision::normal_noise_range::NormalNoiseRange;
-use planet_core::subdivision::split_point_variance::SplitPointVariance;
+use planet_core::processor::terrain_noise::TerrainNoise;
 
 fn parse_color(description: &str) -> Rgb {
     if let Some(rest) = description.strip_prefix("with r ") {
@@ -67,138 +64,55 @@ fn parse_stops(description: &str) -> Vec<(f32, Rgb)> {
 
 #[derive(Debug, Default, cucumber::World)]
 pub struct PresetParamsWorld {
-    fixture: Option<(
-        MinEdgeLength,
-        ElevationNoiseRange,
-        NormalNoiseRange,
-        SplitPointVariance,
-        ColorGradient,
-        Option<OceanQuota>,
-    )>,
+    fixture: Option<(TerrainNoise, ColorGradient, Option<OceanQuota>)>,
     params: Option<PresetParams>,
     params_pair: Option<(PresetParams, PresetParams)>,
 }
 
-fn parse_range(description: &str) -> (f32, f32) {
-    let mut parts = description.splitn(2, " and high ");
-    let low: f32 = parts
-        .next()
-        .expect("low bound")
-        .trim_start_matches("low ")
-        .trim()
-        .parse()
-        .expect("low bound number");
-    let high: f32 = parts
-        .next()
-        .expect("high bound")
-        .trim()
-        .parse()
-        .expect("high bound number");
-    (low, high)
+fn default_terrain_noise(amplitude: f32) -> TerrainNoise {
+    TerrainNoise::new(1.5, 4, 0.5, 2.0, amplitude, 1.4, None).expect("valid terrain noise fixture")
 }
 
 #[given(
-    regex = r"^a MinEdgeLength of (-?\d+(?:\.\d+)?), an ElevationNoiseRange of (low -?\d+(?:\.\d+)? and high -?\d+(?:\.\d+)?), a NormalNoiseRange of (low -?\d+(?:\.\d+)? and high -?\d+(?:\.\d+)?), a SplitPointVariance of (-?\d+(?:\.\d+)?), a ColorGradient with stops at (.+), and an OceanQuota of (-?\d+(?:\.\d+)?)$"
+    regex = r"^a TerrainNoise with amplitude (-?\d+(?:\.\d+)?), a ColorGradient with stops at (.+), and an OceanQuota of (-?\d+(?:\.\d+)?)$"
 )]
 fn given_fixture(
     world: &mut PresetParamsWorld,
-    min_edge_length: f32,
-    elevation_range: String,
-    normal_range: String,
-    split_point_variance: f32,
+    amplitude: f32,
     stops_description: String,
     ocean_quota: f32,
 ) {
-    let (elevation_low, elevation_high) = parse_range(&elevation_range);
-    let (normal_low, normal_high) = parse_range(&normal_range);
     world.fixture = Some((
-        MinEdgeLength::new(min_edge_length).expect("valid min edge length fixture"),
-        ElevationNoiseRange::new(elevation_low, elevation_high)
-            .expect("valid elevation noise range fixture"),
-        NormalNoiseRange::new(normal_low, normal_high).expect("valid normal noise range fixture"),
-        SplitPointVariance::new(split_point_variance).expect("valid split point variance fixture"),
+        default_terrain_noise(amplitude),
         ColorGradient::new(parse_stops(&stops_description)).expect("valid color gradient fixture"),
         Some(OceanQuota::new(ocean_quota).expect("valid ocean quota fixture")),
     ));
 }
 
-#[when("a PresetParams is constructed from those 6 values")]
+#[when("a PresetParams is constructed from those 3 values")]
 fn when_constructed(world: &mut PresetParamsWorld) {
-    let (
-        min_edge_length,
-        elevation_noise_range,
-        normal_noise_range,
-        split_point_variance,
-        color_gradient,
-        ocean_quota,
-    ) = world.fixture.clone().expect("fixture not set");
+    let (terrain_noise, color_gradient, ocean_quota) =
+        world.fixture.clone().expect("fixture not set");
     world.params = Some(PresetParams::new(
-        min_edge_length,
-        elevation_noise_range,
-        normal_noise_range,
-        split_point_variance,
+        terrain_noise,
         color_gradient,
         ocean_quota,
     ));
 }
 
-#[when("two PresetParams are constructed from those same 6 values, separately")]
+#[when("two PresetParams are constructed from those same 3 values, separately")]
 fn when_constructed_twice(world: &mut PresetParamsWorld) {
-    let (
-        min_edge_length,
-        elevation_noise_range,
-        normal_noise_range,
-        split_point_variance,
-        color_gradient,
-        ocean_quota,
-    ) = world.fixture.clone().expect("fixture not set");
-    let first = PresetParams::new(
-        min_edge_length,
-        elevation_noise_range,
-        normal_noise_range,
-        split_point_variance,
-        color_gradient.clone(),
-        ocean_quota,
-    );
-    let second = PresetParams::new(
-        min_edge_length,
-        elevation_noise_range,
-        normal_noise_range,
-        split_point_variance,
-        color_gradient,
-        ocean_quota,
-    );
+    let (terrain_noise, color_gradient, ocean_quota) =
+        world.fixture.clone().expect("fixture not set");
+    let first = PresetParams::new(terrain_noise, color_gradient.clone(), ocean_quota);
+    let second = PresetParams::new(terrain_noise, color_gradient, ocean_quota);
     world.params_pair = Some((first, second));
 }
 
-#[then(regex = r"^the PresetParams has a MinEdgeLength of (-?\d+(?:\.\d+)?)$")]
-fn then_min_edge_length(world: &mut PresetParamsWorld, value: f32) {
+#[then(regex = r"^the PresetParams has a TerrainNoise with amplitude (-?\d+(?:\.\d+)?)$")]
+fn then_terrain_noise(world: &mut PresetParamsWorld, value: f32) {
     let params = world.params.as_ref().expect("PresetParams not constructed");
-    assert_eq!(params.min_edge_length().value(), value);
-}
-
-#[then(
-    regex = r"^the PresetParams has an ElevationNoiseRange of low (-?\d+(?:\.\d+)?) and high (-?\d+(?:\.\d+)?)$"
-)]
-fn then_elevation_noise_range(world: &mut PresetParamsWorld, low: f32, high: f32) {
-    let params = world.params.as_ref().expect("PresetParams not constructed");
-    assert_eq!(params.elevation_noise_range().low(), low);
-    assert_eq!(params.elevation_noise_range().high(), high);
-}
-
-#[then(
-    regex = r"^the PresetParams has a NormalNoiseRange of low (-?\d+(?:\.\d+)?) and high (-?\d+(?:\.\d+)?)$"
-)]
-fn then_normal_noise_range(world: &mut PresetParamsWorld, low: f32, high: f32) {
-    let params = world.params.as_ref().expect("PresetParams not constructed");
-    assert_eq!(params.normal_noise_range().low(), low);
-    assert_eq!(params.normal_noise_range().high(), high);
-}
-
-#[then(regex = r"^the PresetParams has a SplitPointVariance of (-?\d+(?:\.\d+)?)$")]
-fn then_split_point_variance(world: &mut PresetParamsWorld, value: f32) {
-    let params = world.params.as_ref().expect("PresetParams not constructed");
-    assert_eq!(params.split_point_variance().value(), value);
+    assert_eq!(params.terrain_noise().amplitude(), value);
 }
 
 #[then(regex = r"^the PresetParams's ColorGradient samples elevation (-?\d+(?:\.\d+)?) to (\w+)$")]
