@@ -1,11 +1,9 @@
-pub(crate) mod compose;
 pub(crate) mod compose_mesh;
 pub(crate) mod identity;
 pub(crate) mod identity_mesh;
 pub(crate) mod mesh_processor;
-pub(crate) mod normal_displacement;
 pub mod ocean_quota;
-pub(crate) mod radial_displacement;
+pub mod terrain_noise;
 pub(crate) mod vertex_operator;
 pub mod vertex_scramble;
 pub mod vertex_scramble_range;

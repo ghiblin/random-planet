@@ -23,28 +23,25 @@ file (naming, one-type-per-file) is enforced — not by an automated test.
   `Mesh::icosahedron()` / `Mesh::cube()`, never directly) for mesh-construction
   functions built entirely from `geometry`'s own types
 - `subdivision/` — `edge.rs` (`EdgeKey`, `EdgeCache`, `pub(crate)`), `steps.rs`
-  (`Steps`, `StepsError`), `seed.rs` (`Seed`), `elevation_noise_range.rs`
-  (`ElevationNoiseRange`, `ElevationNoiseRangeError`), `normal_noise_range.rs`
-  (`NormalNoiseRange`, `NormalNoiseRangeError`), `min_edge_length.rs`
-  (`MinEdgeLength`, `MinEdgeLengthError`), `split_point_variance.rs`
-  (`SplitPointVariance`, `SplitPointVarianceError`), `subdivision_mode.rs`
+  (`Steps`, `StepsError`), `seed.rs` (`Seed`), `subdivision_mode.rs`
   (`SubdivisionMode`), `subdivision_args.rs` (`SubdivisionArgs`), `subdivide.rs`
   (`SubdivisionStrategy` `pub(crate)`, `subdivide`); plus a nested `strategies/`
-  sub-concern (`uniform_red_split.rs`, `radial_random_split.rs`, `red_green_split.rs`,
-  all `pub(crate)` — exposed publicly only via `SubdivisionMode`, never directly)
-  for the concrete subdivision-algorithm implementations: the recursive subdivision
-  algorithm and its public configuration facade
+  sub-concern (`uniform_red_split.rs`, `pub(crate)` — exposed publicly only via
+  `SubdivisionMode`, never directly) for the concrete subdivision-algorithm
+  implementation: uniform, exact-midpoint geodesic subdivision, with no
+  elevation/displacement logic of its own — elevation lives entirely in
+  `processor/terrain_noise.rs` as a post-subdivision whole-mesh step
 - `processor/` — reusable vertex- and mesh-transformation building blocks: whole-mesh
   pre/post-processing steps that run outside the subdivision algorithm, each taking
   an already-built `Mesh` and returning a transformed one (`vertex_scramble_range.rs`
   (`VertexScrambleRange`, `VertexScrambleRangeError`), `vertex_scramble.rs`
   (`scramble_vertices`), `ocean_quota.rs` (`OceanQuota`, `OceanQuotaError`,
-  `apply_ocean_quota`)); plus the per-vertex `VertexOperator` building blocks
-  `subdivision/strategies/` composes into a pipeline to compute each newly split
-  vertex (`vertex_operator.rs` (`VertexOperator`, `pub(crate)`), `identity.rs`
-  (`identity`, `pub(crate)`), `radial_displacement.rs` (`radial_displacement`,
-  `MIN_VERTEX_RADIUS`, `pub(crate)`), `normal_displacement.rs`
-  (`normal_displacement`, `pub(crate)`), `compose.rs` (`compose`, `pub(crate)`));
+  `apply_ocean_quota`), `terrain_noise.rs` (`TerrainNoise`, `TerrainNoiseError`,
+  `apply_terrain_noise`) — samples layered (fBm) noise at each vertex's unit-sphere
+  direction and reshapes it with a redistribution curve and optional terracing);
+  plus the per-vertex `VertexOperator` building blocks `subdivision/strategies/`
+  composes into a pipeline to compute each newly split vertex (`vertex_operator.rs`
+  (`VertexOperator`, `pub(crate)`), `identity.rs` (`identity`, `pub(crate)`));
   plus the whole-mesh `MeshProcessor` building blocks `Planet::subdivide` composes
   into its post-subdivision pipeline (`mesh_processor.rs` (`MeshProcessor`,
   `pub(crate)`), `identity_mesh.rs` (`identity_mesh`, `pub(crate)`),
@@ -100,7 +97,7 @@ break that entire test suite.
 ## BDD scenario style
 
 - Reference a fixture by how it was obtained, never bare — `Given an icosahedron mesh`, `Given a Planet generated with seed <n> and the <Preset> preset`, never `Given a mesh` or `Given a planet`
-- Every subdivision-related feature file carries the same core scenario set, in this order: face-count growth per level, no duplicate vertices at shared edges, no cracks/T-junctions between red and green triangles, vertex radii stay within the preset's configured bounds. Add algorithm-specific scenarios after these
+- Every subdivision-related feature file carries the same core scenario set, in this order: face-count growth per level, no duplicate vertices at shared edges, no cracks/T-junctions between adjacent triangles, vertex radii stay within the preset's configured bounds. Add algorithm-specific scenarios after these
 - Every preset-related feature file covers: determinism (same seed + preset + depth ⇒ identical `Mesh`), elevation distribution respects the preset's noise range, and — for presets with an ocean quota — the fraction of vertices at sea level matches the configured quota within tolerance
 - `Then`/`And` steps name the field they assert on exactly as it appears in the domain model
 

@@ -1,10 +1,7 @@
 use crate::color::color_gradient::ColorGradient;
 use crate::color::rgb::Rgb;
 use crate::processor::ocean_quota::OceanQuota;
-use crate::subdivision::elevation_noise_range::ElevationNoiseRange;
-use crate::subdivision::min_edge_length::MinEdgeLength;
-use crate::subdivision::normal_noise_range::NormalNoiseRange;
-use crate::subdivision::split_point_variance::SplitPointVariance;
+use crate::processor::terrain_noise::TerrainNoise;
 
 use super::preset_params::PresetParams;
 
@@ -38,16 +35,15 @@ impl Preset {
     pub fn params(&self) -> PresetParams {
         match self {
             Preset::Earthy => PresetParams::new(
-                MinEdgeLength(0.35),
-                ElevationNoiseRange {
-                    low: -0.05,
-                    high: 0.15,
+                TerrainNoise {
+                    frequency: 1.5,
+                    octaves: 4,
+                    persistence: 0.5,
+                    lacunarity: 2.0,
+                    amplitude: 0.12,
+                    redistribution_exponent: 1.4,
+                    terrace_levels: None,
                 },
-                NormalNoiseRange {
-                    low: -0.05,
-                    high: 0.05,
-                },
-                SplitPointVariance(0.1),
                 ColorGradient {
                     stops: vec![
                         (
@@ -103,16 +99,15 @@ impl Preset {
                 Some(OceanQuota(0.4)),
             ),
             Preset::Volcano => PresetParams::new(
-                MinEdgeLength(0.25),
-                ElevationNoiseRange {
-                    low: -0.05,
-                    high: 0.35,
+                TerrainNoise {
+                    frequency: 2.5,
+                    octaves: 5,
+                    persistence: 0.55,
+                    lacunarity: 2.2,
+                    amplitude: 0.30,
+                    redistribution_exponent: 2.2,
+                    terrace_levels: Some(6),
                 },
-                NormalNoiseRange {
-                    low: -0.10,
-                    high: 0.10,
-                },
-                SplitPointVariance(0.2),
                 ColorGradient {
                     stops: vec![
                         (
@@ -160,16 +155,15 @@ impl Preset {
                 None,
             ),
             Preset::Rocky => PresetParams::new(
-                MinEdgeLength(0.3),
-                ElevationNoiseRange {
-                    low: -0.2,
-                    high: 0.2,
+                TerrainNoise {
+                    frequency: 3.0,
+                    octaves: 4,
+                    persistence: 0.5,
+                    lacunarity: 2.0,
+                    amplitude: 0.22,
+                    redistribution_exponent: 1.8,
+                    terrace_levels: Some(8),
                 },
-                NormalNoiseRange {
-                    low: -0.15,
-                    high: 0.15,
-                },
-                SplitPointVariance(0.25),
                 ColorGradient {
                     stops: vec![
                         (

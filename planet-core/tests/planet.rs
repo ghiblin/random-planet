@@ -169,20 +169,78 @@ fn then_color_count(world: &mut PlanetWorld, count: usize) {
     assert_eq!(planet.colors().len(), count);
 }
 
-#[then(
-    regex = r"^the resulting Planet's mesh has no more triangles than (\d+) rounds? of subdivision can produce from an icosahedron$"
-)]
-fn then_triangle_count_within_hard_cap(world: &mut PlanetWorld, rounds: u32) {
+#[then(regex = r"^the resulting Planet's mesh has exactly (\d+) triangles$")]
+fn then_exact_triangle_count(world: &mut PlanetWorld, count: usize) {
     let planet = world
         .first_planet
         .as_ref()
         .expect("first Planet not generated");
-    const ICOSAHEDRON_TRIANGLES: u64 = 20;
-    let max_triangles = ICOSAHEDRON_TRIANGLES * 4u64.pow(rounds);
+    assert_eq!(planet.mesh().triangles().len(), count);
+}
+
+#[then(regex = r"^the resulting Planet's mesh has (\d+) vertices$")]
+fn then_vertex_count(world: &mut PlanetWorld, count: usize) {
+    let planet = world
+        .first_planet
+        .as_ref()
+        .expect("first Planet not generated");
+    assert_eq!(planet.mesh().vertices().len(), count);
+}
+
+#[then("the resulting Planet's mesh has the same triangles as the icosahedron mesh")]
+fn then_same_triangles_as_icosahedron(world: &mut PlanetWorld) {
+    let planet = world
+        .first_planet
+        .as_ref()
+        .expect("first Planet not generated");
+    let icosahedron = Mesh::icosahedron().expect("Mesh::icosahedron() failed");
+    assert_eq!(planet.mesh().triangles(), icosahedron.triangles());
+}
+
+#[then("the second Planet's mesh has more vertices than the first Planet's mesh")]
+fn then_second_has_more_vertices(world: &mut PlanetWorld) {
+    let first = world
+        .first_planet
+        .as_ref()
+        .expect("first Planet not generated");
+    let second = world
+        .second_planet
+        .as_ref()
+        .expect("second Planet not generated");
     assert!(
-        (planet.mesh().triangles().len() as u64) <= max_triangles,
-        "triangle count {} exceeds the hard cap of {max_triangles}",
-        planet.mesh().triangles().len()
+        second.mesh().vertices().len() > first.mesh().vertices().len(),
+        "expected second Planet ({} vertices) to have more vertices than first ({})",
+        second.mesh().vertices().len(),
+        first.mesh().vertices().len()
+    );
+}
+
+#[then(
+    regex = r"^the resulting Planet's mesh has at most (\d+) distinct vertex radii, within floating-point tolerance$"
+)]
+fn then_at_most_distinct_radii(world: &mut PlanetWorld, max_distinct: usize) {
+    let planet = world
+        .first_planet
+        .as_ref()
+        .expect("first Planet not generated");
+    let mut radii: Vec<f32> = planet
+        .mesh()
+        .vertices()
+        .iter()
+        .map(|vertex| vertex.position.length())
+        .collect();
+    radii.sort_by(f32::total_cmp);
+    let mut distinct_count = 0;
+    let mut last: Option<f32> = None;
+    for radius in radii {
+        if last.is_none_or(|l| (radius - l).abs() > 1e-4) {
+            distinct_count += 1;
+            last = Some(radius);
+        }
+    }
+    assert!(
+        distinct_count <= max_distinct,
+        "expected at most {max_distinct} distinct radii, got {distinct_count}"
     );
 }
 
@@ -236,17 +294,12 @@ fn then_callback_invocation_base_mesh(world: &mut PlanetWorld, index: usize, rou
 }
 
 #[then(
-    regex = r"^the progress callback's (\d+)(?:st|nd|rd|th) invocation received round (\d+) with the resulting Planet's mesh$"
+    regex = r"^the progress callback's (\d+)(?:st|nd|rd|th) invocation received a Mesh with (\d+) triangles$"
 )]
-fn then_callback_invocation_final_mesh(world: &mut PlanetWorld, index: usize, round: usize) {
-    let planet = world
-        .first_planet
-        .as_ref()
-        .expect("first Planet not generated");
+fn then_callback_invocation_triangles(world: &mut PlanetWorld, index: usize, count: usize) {
     let invocations = world.invocations();
-    let (mesh, actual_round) = &invocations[index - 1];
-    assert_eq!(mesh, planet.mesh());
-    assert_eq!(*actual_round, round);
+    let (mesh, _) = &invocations[index - 1];
+    assert_eq!(mesh.triangles().len(), count);
 }
 
 #[given("a Planet built with no fields set")]
@@ -368,21 +421,6 @@ fn then_ocean_quota_fraction_within_tolerance(
     assert!(
         (fraction - quota).abs() <= tolerance,
         "fraction at sea level {fraction} is not within {tolerance} of configured quota {quota}"
-    );
-}
-
-#[then(
-    regex = r"^the fraction of the resulting Planet's mesh vertices at its minimum vertex radius is less than (\d+(?:\.\d+)?)$"
-)]
-fn then_ocean_quota_fraction_below(world: &mut PlanetWorld, bound: f32) {
-    let planet = world
-        .first_planet
-        .as_ref()
-        .expect("first Planet not generated");
-    let fraction = fraction_at_minimum_radius(planet);
-    assert!(
-        fraction < bound,
-        "fraction at minimum radius {fraction} is not below {bound}"
     );
 }
 

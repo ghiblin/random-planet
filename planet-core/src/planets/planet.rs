@@ -8,6 +8,7 @@ use crate::processor::compose_mesh::compose_mesh;
 use crate::processor::identity_mesh::identity_mesh;
 use crate::processor::mesh_processor::MeshProcessor;
 use crate::processor::ocean_quota::apply_ocean_quota;
+use crate::processor::terrain_noise::apply_terrain_noise;
 use crate::subdivision::seed::Seed;
 use crate::subdivision::steps::Steps;
 use crate::subdivision::subdivide::subdivide;
@@ -48,8 +49,12 @@ impl From<MeshError> for PlanetError {
     }
 }
 
-fn postprocessing_pipeline(params: &PresetParams) -> MeshProcessor {
-    let mut pipeline = identity_mesh();
+fn postprocessing_pipeline(params: &PresetParams, seed: Seed) -> MeshProcessor {
+    let terrain_noise = params.terrain_noise();
+    let mut pipeline = compose_mesh(
+        identity_mesh(),
+        Box::new(move |mesh: &Mesh| apply_terrain_noise(mesh, seed, terrain_noise)),
+    );
     if let Some(quota) = params.ocean_quota() {
         pipeline = compose_mesh(
             pipeline,
@@ -76,17 +81,11 @@ impl Planet {
         }
         let args = SubdivisionArgs::new(
             Some(max_depth),
-            Some(SubdivisionMode::RedGreenSplit {
-                seed: self.seed,
-                elevation_noise_range: params.elevation_noise_range(),
-                normal_noise_range: params.normal_noise_range(),
-                min_edge_length: params.min_edge_length(),
-                split_point_variance: params.split_point_variance(),
-            }),
+            Some(SubdivisionMode::UniformRedSplit),
             on_progress,
         );
         let mesh = subdivide(&self.mesh, args)?;
-        let mesh = postprocessing_pipeline(&params)(&mesh)?;
+        let mesh = postprocessing_pipeline(&params, self.seed)(&mesh)?;
         let colors = mesh
             .vertices()
             .iter()
