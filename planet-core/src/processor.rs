@@ -1,6 +1,6 @@
 pub(crate) mod compose_mesh;
-pub(crate) mod identity;
 pub(crate) mod identity_mesh;
+pub(crate) mod jitter;
 pub(crate) mod mesh_processor;
 pub mod ocean_quota;
 pub mod terrain_noise;

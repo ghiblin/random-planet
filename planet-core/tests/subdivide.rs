@@ -1,6 +1,7 @@
 use cucumber::{World as _, given, then, when};
 use planet_core::geometry::mesh::{Mesh, Triangle, Vertex};
 use planet_core::geometry::vec3::Vec3;
+use planet_core::subdivision::seed::Seed;
 use planet_core::subdivision::steps::Steps;
 use planet_core::subdivision::subdivide::subdivide;
 use planet_core::subdivision::subdivision_args::{SubdivisionArgs, UpdateCallback};
@@ -17,6 +18,8 @@ pub struct SubdivideWorld {
     triangles: Vec<Triangle>,
     edge_endpoints: Option<(Vec3, Vec3)>,
     result: Option<Mesh>,
+    first_mesh: Option<Mesh>,
+    second_mesh: Option<Mesh>,
     callback_invocations: Option<Invocations>,
 }
 
@@ -40,6 +43,17 @@ impl SubdivideWorld {
             .expect("no recording update callback given")
             .borrow()
     }
+}
+
+fn subdivided(source: &Mesh, steps: usize, seed: u64) -> Mesh {
+    let args = SubdivisionArgs::new(
+        Some(Steps::new(steps).expect("Steps::new failed")),
+        Some(SubdivisionMode::UniformRedSplit {
+            seed: Seed::from(seed),
+        }),
+        None,
+    );
+    subdivide(source, args).expect("subdivide() failed")
 }
 
 #[given("an icosahedron mesh")]
@@ -80,16 +94,11 @@ fn given_first_edge_endpoints(world: &mut SubdivideWorld) {
 }
 
 #[when(
-    regex = r"^the mesh is subdivided with (\d+) steps? using SubdivisionMode::UniformRedSplit$"
+    regex = r"^the mesh is subdivided with (\d+) steps? using SubdivisionMode::UniformRedSplit with seed (\d+)$"
 )]
-fn when_subdivided(world: &mut SubdivideWorld, steps: usize) {
+fn when_subdivided(world: &mut SubdivideWorld, steps: usize, seed: u64) {
     let source = world.source_mesh();
-    let args = SubdivisionArgs::new(
-        Some(Steps::new(steps).expect("Steps::new failed")),
-        Some(SubdivisionMode::UniformRedSplit),
-        None,
-    );
-    world.result = Some(subdivide(&source, args).expect("subdivide() failed"));
+    world.result = Some(subdivided(&source, steps, seed));
 }
 
 #[when("the mesh is subdivided with default SubdivisionArgs")]
@@ -100,9 +109,29 @@ fn when_subdivided_default(world: &mut SubdivideWorld) {
 }
 
 #[when(
-    regex = r"^the mesh is subdivided with (\d+) steps? using SubdivisionMode::UniformRedSplit and a recording update callback$"
+    regex = r"^the mesh is subdivided with (\d+) steps? using SubdivisionMode::UniformRedSplit with seed (\d+), producing the first Mesh$"
 )]
-fn when_subdivided_with_callback(world: &mut SubdivideWorld, steps: usize) {
+fn when_subdivided_first(world: &mut SubdivideWorld, steps: usize, seed: u64) {
+    let source = world.source_mesh();
+    world.first_mesh = Some(subdivided(&source, steps, seed));
+}
+
+#[when(
+    regex = r"^the same icosahedron mesh is subdivided with (\d+) steps? using SubdivisionMode::UniformRedSplit with seed (\d+), producing the second Mesh$"
+)]
+fn when_subdivided_second(world: &mut SubdivideWorld, steps: usize, seed: u64) {
+    let source = world
+        .icosahedron_mesh
+        .as_ref()
+        .expect("icosahedron mesh not given")
+        .clone();
+    world.second_mesh = Some(subdivided(&source, steps, seed));
+}
+
+#[when(
+    regex = r"^the mesh is subdivided with (\d+) steps? using SubdivisionMode::UniformRedSplit with seed (\d+) and a recording update callback$"
+)]
+fn when_subdivided_with_callback(world: &mut SubdivideWorld, steps: usize, seed: u64) {
     let source = world.source_mesh();
     let invocations = Rc::new(RefCell::new(Vec::new()));
     let recorder = invocations.clone();
@@ -112,7 +141,9 @@ fn when_subdivided_with_callback(world: &mut SubdivideWorld, steps: usize) {
     world.callback_invocations = Some(invocations);
     let args = SubdivisionArgs::new(
         Some(Steps::new(steps).expect("Steps::new failed")),
-        Some(SubdivisionMode::UniformRedSplit),
+        Some(SubdivisionMode::UniformRedSplit {
+            seed: Seed::from(seed),
+        }),
         Some(update_cb),
     );
     world.result = Some(subdivide(&source, args).expect("subdivide() failed"));
@@ -154,16 +185,51 @@ fn then_radius_upper_bound(world: &mut SubdivideWorld, bound: f32) {
     }
 }
 
-#[then("a vertex exists in the resulting Mesh at the exact midpoint of the two given vertices")]
-fn then_midpoint_exists(world: &mut SubdivideWorld) {
+#[then(
+    regex = r"^every vertex of the resulting Mesh has a radius greater than or equal to (\d+(?:\.\d+)?)$"
+)]
+fn then_radius_lower_bound(world: &mut SubdivideWorld, bound: f32) {
+    for vertex in world.result().vertices() {
+        assert!(
+            vertex.position.length() >= bound - 1e-5,
+            "vertex radius {} is below {bound}",
+            vertex.position.length()
+        );
+    }
+}
+
+#[then(
+    regex = r"^a vertex exists in the resulting Mesh within (\d+(?:\.\d+)?) times the edge's length of the exact midpoint of the two given vertices$"
+)]
+fn then_midpoint_within_bound(world: &mut SubdivideWorld, factor: f32) {
     let (a, b) = world.edge_endpoints.expect("edge endpoints not given");
     let expected = a.add(b).scale(0.5);
+    let edge_length = b.sub(a).length();
+    let bound = factor * edge_length;
     let found = world
         .result()
         .vertices()
         .iter()
-        .any(|vertex| (vertex.position.sub(expected)).length() < 1e-5);
-    assert!(found, "no vertex found at expected midpoint {expected:?}");
+        .any(|vertex| (vertex.position.sub(expected)).length() <= bound);
+    assert!(
+        found,
+        "no vertex found within {bound} of expected midpoint {expected:?}"
+    );
+}
+
+#[then("no vertex in the resulting Mesh sits at the exact midpoint of the two given vertices")]
+fn then_no_vertex_at_exact_midpoint(world: &mut SubdivideWorld) {
+    let (a, b) = world.edge_endpoints.expect("edge endpoints not given");
+    let expected = a.add(b).scale(0.5);
+    let found_exact = world
+        .result()
+        .vertices()
+        .iter()
+        .any(|vertex| (vertex.position.sub(expected)).length() < 1e-6);
+    assert!(
+        !found_exact,
+        "a vertex was found at the exact midpoint {expected:?}, expected jitter to move it away"
+    );
 }
 
 #[then("the resulting Mesh is identical to the icosahedron mesh")]
@@ -173,6 +239,26 @@ fn then_identical_to_icosahedron(world: &mut SubdivideWorld) {
         .as_ref()
         .expect("icosahedron mesh not given");
     assert_eq!(world.result(), source);
+}
+
+#[then("the first Mesh and the second Mesh are identical")]
+fn then_first_and_second_identical(world: &mut SubdivideWorld) {
+    let first = world.first_mesh.as_ref().expect("first Mesh not computed");
+    let second = world
+        .second_mesh
+        .as_ref()
+        .expect("second Mesh not computed");
+    assert_eq!(first, second);
+}
+
+#[then("the first Mesh and the second Mesh are not identical")]
+fn then_first_and_second_not_identical(world: &mut SubdivideWorld) {
+    let first = world.first_mesh.as_ref().expect("first Mesh not computed");
+    let second = world
+        .second_mesh
+        .as_ref()
+        .expect("second Mesh not computed");
+    assert_ne!(first, second);
 }
 
 #[then(regex = r"^the update callback was invoked (\d+) times$")]

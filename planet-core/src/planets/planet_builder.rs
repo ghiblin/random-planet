@@ -1,5 +1,7 @@
 use crate::geometry::mesh::Mesh;
 use crate::presets::preset::Preset;
+use crate::processor::vertex_scramble::scramble_vertices;
+use crate::processor::vertex_scramble_range::VertexScrambleRange;
 use crate::subdivision::seed::Seed;
 
 use super::planet::{Planet, PlanetError};
@@ -25,6 +27,7 @@ impl PlanetBuilder {
         let preset = self.preset.unwrap_or_default();
         let seed = self.seed.unwrap_or_default();
         let mesh = Mesh::icosahedron()?;
+        let mesh = scramble_vertices(&mesh, seed, VertexScrambleRange::default())?;
         let colors = mesh
             .vertices()
             .iter()
