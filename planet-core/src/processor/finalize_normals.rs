@@ -1,5 +1,7 @@
-use crate::geometry::mesh::{Face, Mesh, Vertex};
+use crate::geometry::face::Face;
+use crate::geometry::mesh::Mesh;
 use crate::geometry::vec3::Vec3;
+use crate::geometry::vertex::Vertex;
 
 fn face_corners(mesh: &Mesh, face: &Face) -> [usize; 3] {
     let mut corners = [0usize; 3];

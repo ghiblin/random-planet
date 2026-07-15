@@ -1,7 +1,7 @@
 use rand::SeedableRng;
 use rand_pcg::Pcg32;
 
-use crate::geometry::mesh::Vertex;
+use crate::geometry::vertex::Vertex;
 use crate::processor::jitter::jitter;
 use crate::processor::vertex_operator::VertexOperator;
 use crate::subdivision::edge::EdgeCache;

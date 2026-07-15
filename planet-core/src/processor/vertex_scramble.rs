@@ -2,8 +2,9 @@ use rand::{RngExt, SeedableRng};
 use rand_pcg::Pcg32;
 
 use super::vertex_scramble_range::VertexScrambleRange;
-use crate::geometry::mesh::{Mesh, MeshError, Vertex};
+use crate::geometry::mesh::{Mesh, MeshError};
 use crate::geometry::vec3::Vec3;
+use crate::geometry::vertex::Vertex;
 use crate::subdivision::seed::Seed;
 
 const MIN_VERTEX_RADIUS: f32 = 0.05;

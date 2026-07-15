@@ -17,16 +17,17 @@ at `planet-pr-validate` review time — the same way every other convention in t
 file (naming, one-type-per-file) is enforced — not by an automated test.
 
 `planet-core`'s concerns:
-- `geometry/` — `vec3.rs` (`Vec3`), `mesh.rs` (`Vertex`, `Edge`, `Face`, `Mesh`,
-  `MeshError`): spatial value types, no algorithm. `Mesh` is a `Face`/`Edge`/`Vertex`
-  adjacency graph — `Vertex` carries `position`, `normal`, and `edges` (indices of
-  every `Edge` where it is the `start`); `Edge` carries `start`/`end` vertex indices
-  and the one `Face` it bounds (two triangles sharing a geometric edge each get their
-  own `Edge`, no shared/twin pointer); `Face` carries its boundary `edges`, `order`
-  (`edges.len()`, always 3 today), and `normal`. `Mesh::new` takes bare `Vec<Vec3>`
-  positions plus `Vec<(usize, usize, usize)>` triangle index-triples (no dedicated
-  `Triangle` type) and builds the graph; `Vertex.normal`/`Face.normal` start as
-  `Vec3::ZERO` placeholders, populated only by `processor/finalize_normals.rs`'s
+- `geometry/` — `vec3.rs` (`Vec3`), `vertex.rs` (`Vertex`), `edge.rs` (`Edge`),
+  `face.rs` (`Face`), `mesh.rs` (`Mesh`, `MeshError`): spatial value types, no
+  algorithm. `Mesh` is a `Face`/`Edge`/`Vertex` adjacency graph — `Vertex` carries
+  `position`, `normal`, and `edges` (indices of every `Edge` where it is the
+  `start`); `Edge` carries `start`/`end` vertex indices and the one `Face` it bounds
+  (two triangles sharing a geometric edge each get their own `Edge`, no shared/twin
+  pointer); `Face` carries its boundary `edges`, `order` (`edges.len()`, always 3
+  today), and `normal`. `Mesh::new` takes bare `Vec<Vec3>` positions plus
+  `Vec<(usize, usize, usize)>` triangle index-triples (no dedicated `Triangle` type)
+  and builds the graph; `Vertex.normal`/`Face.normal` start as `Vec3::ZERO`
+  placeholders, populated only by `processor/finalize_normals.rs`'s
   `finalize_normals` once every position-mutating step has completed; plus a nested
   `primitives/` sub-concern (`icosahedron.rs`, `cube.rs`, both `pub(crate)` — exposed
   publicly only via `Mesh::icosahedron()` / `Mesh::cube()`, never directly) for

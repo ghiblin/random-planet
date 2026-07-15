@@ -1,6 +1,6 @@
 use rand::RngExt;
 
-use crate::geometry::mesh::Vertex;
+use crate::geometry::vertex::Vertex;
 
 use super::vertex_operator::VertexOperator;
 
@@ -28,8 +28,8 @@ mod tests {
     use rand_pcg::Pcg32;
 
     use super::jitter;
-    use crate::geometry::mesh::Vertex;
     use crate::geometry::vec3::Vec3;
+    use crate::geometry::vertex::Vertex;
 
     fn vertex(x: f32, y: f32, z: f32) -> Vertex {
         Vertex::at(Vec3::new(x, y, z))

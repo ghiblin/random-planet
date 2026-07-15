@@ -1,37 +1,9 @@
+use super::edge::Edge;
+use super::face::Face;
 use super::primitives::{cube::cube, icosahedron::icosahedron};
 use super::vec3::Vec3;
+use super::vertex::Vertex;
 use std::fmt;
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct Vertex {
-    pub position: Vec3,
-    pub normal: Vec3,
-    pub edges: Vec<usize>,
-}
-
-impl Vertex {
-    pub(crate) fn at(position: Vec3) -> Vertex {
-        Vertex {
-            position,
-            normal: Vec3::new(0.0, 0.0, 0.0),
-            edges: Vec::new(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Edge {
-    pub start: usize,
-    pub end: usize,
-    pub face: usize,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct Face {
-    pub edges: Vec<usize>,
-    pub order: usize,
-    pub normal: Vec3,
-}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum MeshError {
