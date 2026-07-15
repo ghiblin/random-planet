@@ -78,3 +78,13 @@ Feature: Planet aggregate generation
   Scenario: A Planet generated with a preset carrying terrace levels has vertex radii clustered at a bounded number of distinct values
     Given a Planet generated with seed 5 and the Volcano preset at max depth 4
     Then the resulting Planet's mesh has at most 6 distinct vertex radii, within floating-point tolerance
+
+  Scenario: An Earthy Planet's post-subdivision vertex radii reflect the increased cartoonish amplitude
+    Given a Planet generated with seed 5 and the Earthy preset at max depth 3
+    Then every vertex of the resulting Planet's mesh has a radius greater than or equal to 0.7
+    And every vertex of the resulting Planet's mesh has a radius less than or equal to 1.3
+
+  Scenario: A Planet's subdivision mode comes from its preset, not a value independent of preset
+    Given a Planet generated with seed 5 and the Earthy preset at max depth 3
+    When another Planet is generated with seed 5 and the Volcano preset at max depth 3
+    Then both resulting Planets' meshes have exactly 1280 triangles

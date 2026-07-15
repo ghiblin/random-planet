@@ -34,7 +34,7 @@ fn split_round(mesh: &Mesh, strategy: &mut dyn SubdivisionStrategy) -> Result<Me
 }
 
 pub fn subdivide(mesh: &Mesh, mut args: SubdivisionArgs) -> Result<Mesh, MeshError> {
-    let mut strategy = args.mode.strategy();
+    let mut strategy = args.mode.strategy(args.seed);
     let mut current = mesh.clone();
     for step in 1..=args.steps.value() {
         current = split_round(&current, strategy.as_mut())?;

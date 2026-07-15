@@ -188,6 +188,20 @@ fn then_exact_triangle_count(world: &mut PlanetWorld, count: usize) {
     assert_eq!(planet.mesh().triangles().len(), count);
 }
 
+#[then(regex = r"^both resulting Planets' meshes have exactly (\d+) triangles$")]
+fn then_both_exact_triangle_count(world: &mut PlanetWorld, count: usize) {
+    let first = world
+        .first_planet
+        .as_ref()
+        .expect("first Planet not generated");
+    let second = world
+        .second_planet
+        .as_ref()
+        .expect("second Planet not generated");
+    assert_eq!(first.mesh().triangles().len(), count);
+    assert_eq!(second.mesh().triangles().len(), count);
+}
+
 #[then(regex = r"^the resulting Planet's mesh has (\d+) vertices$")]
 fn then_vertex_count(world: &mut PlanetWorld, count: usize) {
     let planet = world

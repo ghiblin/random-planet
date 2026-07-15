@@ -13,7 +13,6 @@ use crate::subdivision::seed::Seed;
 use crate::subdivision::steps::Steps;
 use crate::subdivision::subdivide::subdivide;
 use crate::subdivision::subdivision_args::SubdivisionArgs;
-use crate::subdivision::subdivision_mode::SubdivisionMode;
 
 use super::planet_builder::PlanetBuilder;
 
@@ -81,7 +80,8 @@ impl Planet {
         }
         let args = SubdivisionArgs::new(
             Some(max_depth),
-            Some(SubdivisionMode::UniformRedSplit { seed: self.seed }),
+            Some(params.subdivision_mode()),
+            Some(self.seed),
             on_progress,
         );
         let mesh = subdivide(&self.mesh, args)?;

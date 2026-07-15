@@ -1,6 +1,7 @@
 use cucumber::{World as _, given, then, when};
 use planet_core::presets::preset::Preset;
 use planet_core::presets::preset_params::PresetParams;
+use planet_core::subdivision::subdivision_mode::SubdivisionMode;
 
 #[derive(Debug, Default, cucumber::World)]
 pub struct PresetWorld {
@@ -69,6 +70,12 @@ fn then_ocean_quota(world: &mut PresetWorld, value: f32) {
             .value(),
         value
     );
+}
+
+#[then("the PresetParams has subdivision mode SubdivisionMode::UniformRedSplit")]
+fn then_subdivision_mode(world: &mut PresetWorld) {
+    let params = world.params.as_ref().expect("PresetParams not requested");
+    assert_eq!(params.subdivision_mode(), SubdivisionMode::UniformRedSplit);
 }
 
 #[then("the PresetParams has no OceanQuota")]
