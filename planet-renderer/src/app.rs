@@ -17,6 +17,7 @@ use planet_core::color::rgb::Rgb;
 use planet_core::geometry::mesh::Mesh;
 use planet_core::planets::planet::{GenerationProgress, Planet};
 use planet_core::presets::preset::Preset;
+use planet_core::processor::finalize_normals::finalize_normals;
 use planet_core::subdivision::seed::Seed;
 use planet_core::subdivision::steps::Steps;
 
@@ -165,9 +166,10 @@ fn configure_depth_slider(slider: &HtmlInputElement) {
 /// scratch — every Start click gets its own timestamp-derived seed, so there is
 /// nothing to reuse from a previous generation. Collects the per-round growth
 /// animation into `frames` (colored via the preset's own `ColorGradient`, since
-/// that's a pure function of a vertex's radius, valid for every intermediate round),
-/// then swaps the last collected frame for `Planet::subdivide`'s true, fully
-/// post-processed result before handing the first frame to the renderer.
+/// that's a pure function of a vertex's radius, valid for every intermediate round;
+/// normals are finalized the same way per frame so the growth animation renders with
+/// smooth shading too), then swaps the last collected frame for `Planet::subdivide`'s
+/// true, fully post-processed result before handing the first frame to the renderer.
 fn generate(
     preset: Preset,
     depth: Steps,
@@ -197,7 +199,9 @@ fn generate(
             .iter()
             .map(|vertex| params.color_gradient().sample(vertex.position.length()))
             .collect();
-        frame_collector.borrow_mut().push((mesh.clone(), colors));
+        frame_collector
+            .borrow_mut()
+            .push((finalize_normals(mesh), colors));
     });
 
     let subdivided = match planet.subdivide(depth, Some(on_progress)) {

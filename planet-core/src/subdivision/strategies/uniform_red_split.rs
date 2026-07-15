@@ -1,7 +1,7 @@
 use rand::SeedableRng;
 use rand_pcg::Pcg32;
 
-use crate::geometry::mesh::{Triangle, Vertex};
+use crate::geometry::mesh::Vertex;
 use crate::processor::jitter::jitter;
 use crate::processor::vertex_operator::VertexOperator;
 use crate::subdivision::edge::EdgeCache;
@@ -9,9 +9,7 @@ use crate::subdivision::seed::Seed;
 use crate::subdivision::subdivide::SubdivisionStrategy;
 
 fn exact_midpoint(a: &Vertex, b: &Vertex) -> Vertex {
-    Vertex {
-        position: a.position.add(b.position).scale(0.5),
-    }
+    Vertex::at(a.position.add(b.position).scale(0.5))
 }
 
 pub(crate) struct UniformRedSplit {
@@ -33,25 +31,21 @@ impl SubdivisionStrategy for UniformRedSplit {
         &mut self,
         vertices: &mut Vec<Vertex>,
         edges: &mut EdgeCache,
-        triangle: Triangle,
-    ) -> Vec<Triangle> {
+        triangle: (usize, usize, usize),
+    ) -> Vec<(usize, usize, usize)> {
+        let (a, b, c) = triangle;
         let rng = &mut self.rng;
         let pipeline = &self.pipeline;
-        let ab = edges.get_or_insert_with(triangle.a, triangle.b, vertices, |a, b| {
+        let ab = edges.get_or_insert_with(a, b, vertices, |a, b| {
             pipeline(&mut *rng, a, b, exact_midpoint(a, b))
         });
-        let bc = edges.get_or_insert_with(triangle.b, triangle.c, vertices, |a, b| {
+        let bc = edges.get_or_insert_with(b, c, vertices, |a, b| {
             pipeline(&mut *rng, a, b, exact_midpoint(a, b))
         });
-        let ca = edges.get_or_insert_with(triangle.c, triangle.a, vertices, |a, b| {
+        let ca = edges.get_or_insert_with(c, a, vertices, |a, b| {
             pipeline(&mut *rng, a, b, exact_midpoint(a, b))
         });
 
-        vec![
-            Triangle::new(triangle.a, ab, ca),
-            Triangle::new(triangle.b, bc, ab),
-            Triangle::new(triangle.c, ca, bc),
-            Triangle::new(ab, bc, ca),
-        ]
+        vec![(a, ab, ca), (b, bc, ab), (c, ca, bc), (ab, bc, ca)]
     }
 }

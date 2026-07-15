@@ -12,6 +12,14 @@ impl IcosahedronWorld {
             .as_ref()
             .expect("icosahedron mesh not constructed")
     }
+
+    fn face_corner_indices(&self, face_index: usize) -> Vec<usize> {
+        self.mesh().faces()[face_index]
+            .edges
+            .iter()
+            .map(|&edge_index| self.mesh().edges()[edge_index].start)
+            .collect()
+    }
 }
 
 #[given("an icosahedron mesh")]
@@ -29,9 +37,9 @@ fn then_vertex_count(world: &mut IcosahedronWorld, count: usize) {
     assert_eq!(world.mesh().vertices().len(), count);
 }
 
-#[then(regex = r"^the Mesh has (\d+) triangles$")]
-fn then_triangle_count(world: &mut IcosahedronWorld, count: usize) {
-    assert_eq!(world.mesh().triangles().len(), count);
+#[then(regex = r"^the Mesh has (\d+) faces$")]
+fn then_face_count(world: &mut IcosahedronWorld, count: usize) {
+    assert_eq!(world.mesh().faces().len(), count);
 }
 
 #[then(regex = r"^every vertex of the Mesh has a radius of ([\d.]+)$")]
@@ -45,36 +53,38 @@ fn then_every_vertex_radius(world: &mut IcosahedronWorld, radius: f32) {
     }
 }
 
-#[then("every triangle in the Mesh has three distinct vertex indices")]
+#[then("every face in the Mesh has three distinct vertex indices")]
 fn then_distinct_indices(world: &mut IcosahedronWorld) {
-    for triangle in world.mesh().triangles() {
-        assert_ne!(triangle.a, triangle.b);
-        assert_ne!(triangle.b, triangle.c);
-        assert_ne!(triangle.a, triangle.c);
+    for face_index in 0..world.mesh().faces().len() {
+        let corners = world.face_corner_indices(face_index);
+        assert_ne!(corners[0], corners[1]);
+        assert_ne!(corners[1], corners[2]);
+        assert_ne!(corners[0], corners[2]);
     }
 }
 
-#[then(regex = r"^every triangle index in the Mesh is less than (\d+)$")]
+#[then(regex = r"^every face's vertex index in the Mesh is less than (\d+)$")]
 fn then_indices_less_than(world: &mut IcosahedronWorld, bound: usize) {
-    for triangle in world.mesh().triangles() {
-        assert!(triangle.a < bound);
-        assert!(triangle.b < bound);
-        assert!(triangle.c < bound);
+    for face_index in 0..world.mesh().faces().len() {
+        for corner in world.face_corner_indices(face_index) {
+            assert!(corner < bound);
+        }
     }
 }
 
-#[then("every triangle's face normal points away from the origin")]
+#[then("every face's normal points away from the origin")]
 fn then_wound_outward(world: &mut IcosahedronWorld) {
-    for triangle in world.mesh().triangles() {
+    for face_index in 0..world.mesh().faces().len() {
+        let corners = world.face_corner_indices(face_index);
         let vertices = world.mesh().vertices();
-        let pa = vertices[triangle.a].position;
-        let pb = vertices[triangle.b].position;
-        let pc = vertices[triangle.c].position;
+        let pa = vertices[corners[0]].position;
+        let pb = vertices[corners[1]].position;
+        let pc = vertices[corners[2]].position;
         let centroid = pa.add(pb).add(pc).scale(1.0 / 3.0);
         let normal = pb.sub(pa).cross(pc.sub(pa));
         assert!(
             normal.dot(centroid) > 0.0,
-            "triangle {triangle:?} is wound inward"
+            "face {corners:?} is wound inward"
         );
     }
 }

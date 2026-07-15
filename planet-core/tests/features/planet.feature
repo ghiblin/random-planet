@@ -23,12 +23,12 @@ Feature: Planet aggregate generation
   Scenario: A Planet generated at zero max depth keeps the icosahedron's topology, shaped by terrain noise
     Given a Planet generated with seed 1 and the Earthy preset at max depth 0
     Then the resulting Planet's mesh has 12 vertices
-    And the resulting Planet's mesh has the same triangles as the icosahedron mesh
+    And the resulting Planet's mesh has the same faces as the icosahedron mesh
     And the resulting Planet has exactly 12 colors
 
-  Scenario: Subdivision depth deterministically produces the full geodesic triangle count for every preset
+  Scenario: Subdivision depth deterministically produces the full geodesic face count for every preset
     Given a Planet generated with seed 5 and the Volcano preset at max depth 8
-    Then the resulting Planet's mesh has exactly 1310720 triangles
+    Then the resulting Planet's mesh has exactly 1310720 faces
 
   Scenario: Increasing subdivision depth beyond 3 keeps growing an Earthy planet's mesh
     Given a Planet generated with seed 42 and the Earthy preset at max depth 3
@@ -40,7 +40,7 @@ Feature: Planet aggregate generation
     When a Planet is generated with seed 9 and the Volcano preset at max depth 2 using that callback
     Then the progress callback was invoked 3 times
     And the progress callback's 1st invocation received round 0 with the base icosahedron mesh
-    And the progress callback's 3rd invocation received a Mesh with 320 triangles
+    And the progress callback's 3rd invocation received a Mesh with 320 faces
 
   Scenario: The optional progress callback still reports the base mesh at zero max depth
     Given a recording progress callback
@@ -53,7 +53,7 @@ Feature: Planet aggregate generation
     Then the resulting Planet's preset is Earthy
     And the resulting Planet's seed is 0
     And the resulting Planet's mesh has 12 vertices
-    And the resulting Planet's mesh has the same triangles as the icosahedron mesh
+    And the resulting Planet's mesh has the same faces as the icosahedron mesh
     And the resulting Planet's mesh is not identical to the icosahedron mesh
     And the resulting Planet has no max depth set
 
@@ -61,7 +61,7 @@ Feature: Planet aggregate generation
     Given a Planet created with the Earthy preset and seed 1
     Then the resulting Planet's seed is 1
     And the resulting Planet's mesh has 12 vertices
-    And the resulting Planet's mesh has the same triangles as the icosahedron mesh
+    And the resulting Planet's mesh has the same faces as the icosahedron mesh
     And the resulting Planet's mesh is not identical to the icosahedron mesh
     And the resulting Planet has no max depth set
 
@@ -92,4 +92,4 @@ Feature: Planet aggregate generation
   Scenario: A Planet's subdivision mode comes from its preset, not a value independent of preset
     Given a Planet generated with seed 5 and the Earthy preset at max depth 3
     When another Planet is generated with seed 5 and the Volcano preset at max depth 3
-    Then both resulting Planets' meshes have exactly 1280 triangles
+    Then both resulting Planets' meshes have exactly 1280 faces

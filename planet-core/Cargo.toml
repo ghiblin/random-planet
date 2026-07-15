@@ -75,6 +75,10 @@ harness = false
 name = "apply_terrain_noise"
 harness = false
 
+[[test]]
+name = "finalize_normals"
+harness = false
+
 [dependencies]
 noise = "0.9"
 rand = "0.10.2"

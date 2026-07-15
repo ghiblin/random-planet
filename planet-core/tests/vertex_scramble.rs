@@ -1,5 +1,5 @@
 use cucumber::{World as _, given, then, when};
-use planet_core::geometry::mesh::{Mesh, Triangle, Vertex};
+use planet_core::geometry::mesh::Mesh;
 use planet_core::geometry::vec3::Vec3;
 use planet_core::processor::vertex_scramble::scramble_vertices;
 use planet_core::processor::vertex_scramble_range::VertexScrambleRange;
@@ -8,8 +8,8 @@ use planet_core::subdivision::seed::Seed;
 #[derive(Debug, Default, cucumber::World)]
 pub struct VertexScrambleWorld {
     icosahedron_mesh: Option<Mesh>,
-    vertices: Vec<Vertex>,
-    triangles: Vec<Triangle>,
+    positions: Vec<Vec3>,
+    triangles: Vec<(usize, usize, usize)>,
     result: Option<Mesh>,
     first_mesh: Option<Mesh>,
     second_mesh: Option<Mesh>,
@@ -20,7 +20,7 @@ impl VertexScrambleWorld {
         if let Some(mesh) = &self.icosahedron_mesh {
             mesh.clone()
         } else {
-            Mesh::new(self.vertices.clone(), self.triangles.clone())
+            Mesh::new(self.positions.clone(), self.triangles.clone())
                 .expect("source Mesh construction failed")
         }
     }
@@ -41,36 +41,26 @@ fn given_icosahedron(world: &mut VertexScrambleWorld) {
     regex = r"^a Mesh with a vertex at position (-?\d+(?:\.\d+)?), (-?\d+(?:\.\d+)?), (-?\d+(?:\.\d+)?)$"
 )]
 fn given_vertex_at_position(world: &mut VertexScrambleWorld, x: f32, y: f32, z: f32) {
-    world.vertices = vec![Vertex {
-        position: Vec3::new(x, y, z),
-    }];
+    world.positions = vec![Vec3::new(x, y, z)];
 }
 
 #[given("a Mesh with a vertex exactly at the origin")]
 fn given_vertex_at_origin(world: &mut VertexScrambleWorld) {
-    world.vertices = vec![Vertex {
-        position: Vec3::new(0.0, 0.0, 0.0),
-    }];
+    world.positions = vec![Vec3::new(0.0, 0.0, 0.0)];
 }
 
 #[given("a Mesh with 3 vertices at the corners of an arbitrary triangle")]
 fn given_arbitrary_triangle_vertices(world: &mut VertexScrambleWorld) {
-    world.vertices = vec![
-        Vertex {
-            position: Vec3::new(0.0, 0.0, 0.0),
-        },
-        Vertex {
-            position: Vec3::new(2.0, 0.0, 0.0),
-        },
-        Vertex {
-            position: Vec3::new(0.0, 2.0, 1.0),
-        },
+    world.positions = vec![
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(2.0, 0.0, 0.0),
+        Vec3::new(0.0, 2.0, 1.0),
     ];
 }
 
-#[given(regex = r"^a Triangle referencing indices (\d+), (\d+), (\d+)$")]
+#[given(regex = r"^a triangle index-triple \((\d+), (\d+), (\d+)\)$")]
 fn given_triangle(world: &mut VertexScrambleWorld, a: usize, b: usize, c: usize) {
-    world.triangles.push(Triangle::new(a, b, c));
+    world.triangles.push((a, b, c));
 }
 
 #[when(
@@ -150,13 +140,13 @@ fn then_vertex_count(world: &mut VertexScrambleWorld, count: usize) {
     assert_eq!(world.result().vertices().len(), count);
 }
 
-#[then("the resulting Mesh has the same triangles as the icosahedron mesh")]
-fn then_same_triangles(world: &mut VertexScrambleWorld) {
+#[then("the resulting Mesh has the same faces as the icosahedron mesh")]
+fn then_same_faces(world: &mut VertexScrambleWorld) {
     let source = world
         .icosahedron_mesh
         .as_ref()
         .expect("icosahedron mesh not given");
-    assert_eq!(world.result().triangles(), source.triangles());
+    assert_eq!(world.result().faces(), source.faces());
 }
 
 #[then("the first Mesh and the second Mesh are identical")]

@@ -18,7 +18,7 @@ pub(crate) fn jitter() -> VertexOperator {
                 rng.random_range(-NORMAL_OFFSET_FRACTION..=NORMAL_OFFSET_FRACTION) * edge_length;
             position = position.add(normal.scale(normal_delta));
         }
-        Vertex { position }
+        Vertex::at(position)
     })
 }
 
@@ -32,15 +32,11 @@ mod tests {
     use crate::geometry::vec3::Vec3;
 
     fn vertex(x: f32, y: f32, z: f32) -> Vertex {
-        Vertex {
-            position: Vec3::new(x, y, z),
-        }
+        Vertex::at(Vec3::new(x, y, z))
     }
 
     fn exact_midpoint(a: &Vertex, b: &Vertex) -> Vertex {
-        Vertex {
-            position: a.position.add(b.position).scale(0.5),
-        }
+        Vertex::at(a.position.add(b.position).scale(0.5))
     }
 
     #[test]
@@ -50,7 +46,7 @@ mod tests {
         let b = vertex(0.0, 1.0, 0.0);
         let midpoint = exact_midpoint(&a, &b);
 
-        let result = jitter()(&mut rng, &a, &b, midpoint);
+        let result = jitter()(&mut rng, &a, &b, midpoint.clone());
 
         assert_ne!(result.position, midpoint.position);
     }
@@ -65,7 +61,7 @@ mod tests {
 
         for seed in 0..50 {
             let mut rng = Pcg32::seed_from_u64(seed);
-            let result = jitter()(&mut rng, &a, &b, midpoint);
+            let result = jitter()(&mut rng, &a, &b, midpoint.clone());
             let distance = result.position.sub(midpoint.position).length();
             assert!(
                 distance <= bound,

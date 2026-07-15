@@ -1,12 +1,12 @@
 use cucumber::{World as _, given, then, when};
-use planet_core::geometry::mesh::{Mesh, Vertex};
+use planet_core::geometry::mesh::Mesh;
 use planet_core::geometry::vec3::Vec3;
 use planet_core::processor::ocean_quota::{OceanQuota, apply_ocean_quota};
 
 #[derive(Debug, Default, cucumber::World)]
 pub struct ApplyOceanQuotaWorld {
     icosahedron_mesh: Option<Mesh>,
-    vertices: Vec<Vertex>,
+    positions: Vec<Vec3>,
     source: Option<Mesh>,
     result: Option<Mesh>,
     first_mesh: Option<Mesh>,
@@ -18,7 +18,7 @@ impl ApplyOceanQuotaWorld {
         if let Some(mesh) = &self.icosahedron_mesh {
             mesh.clone()
         } else {
-            Mesh::new(self.vertices.clone(), vec![]).expect("source Mesh construction failed")
+            Mesh::new(self.positions.clone(), vec![]).expect("source Mesh construction failed")
         }
     }
 
@@ -36,25 +36,21 @@ fn given_icosahedron(world: &mut ApplyOceanQuotaWorld) {
 
 #[given(regex = r"^a Mesh with vertices at radii ([0-9., ]+)$")]
 fn given_vertices_at_radii(world: &mut ApplyOceanQuotaWorld, radii: String) {
-    world.vertices = radii
+    world.positions = radii
         .split(',')
         .map(|part| part.trim().parse::<f32>().expect("radius"))
-        .map(|radius| Vertex {
-            position: Vec3::new(radius, 0.0, 0.0),
-        })
+        .map(|radius| Vec3::new(radius, 0.0, 0.0))
         .collect();
 }
 
 #[given("a Mesh with a vertex exactly at the origin")]
 fn given_vertex_at_origin(world: &mut ApplyOceanQuotaWorld) {
-    world.vertices = vec![Vertex {
-        position: Vec3::new(0.0, 0.0, 0.0),
-    }];
+    world.positions = vec![Vec3::new(0.0, 0.0, 0.0)];
 }
 
 #[given("a Mesh with no vertices and no triangles")]
 fn given_empty_mesh(world: &mut ApplyOceanQuotaWorld) {
-    world.vertices = vec![];
+    world.positions = vec![];
 }
 
 #[when(
@@ -133,13 +129,13 @@ fn then_vertex_count(world: &mut ApplyOceanQuotaWorld, count: usize) {
     assert_eq!(world.result().vertices().len(), count);
 }
 
-#[then("the resulting Mesh has the same triangles as the icosahedron mesh")]
-fn then_same_triangles(world: &mut ApplyOceanQuotaWorld) {
+#[then("the resulting Mesh has the same faces as the icosahedron mesh")]
+fn then_same_faces(world: &mut ApplyOceanQuotaWorld) {
     let source = world
         .icosahedron_mesh
         .as_ref()
         .expect("icosahedron mesh not given");
-    assert_eq!(world.result().triangles(), source.triangles());
+    assert_eq!(world.result().faces(), source.faces());
 }
 
 #[then("no panic occurs")]

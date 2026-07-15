@@ -2,7 +2,7 @@ use std::fmt;
 
 use noise::{Fbm, MultiFractal, NoiseFn, Perlin};
 
-use crate::geometry::mesh::{Mesh, MeshError, Vertex};
+use crate::geometry::mesh::{Mesh, MeshError};
 use crate::subdivision::seed::Seed;
 
 pub(crate) const MIN_VERTEX_RADIUS: f32 = 0.05;
@@ -132,12 +132,12 @@ pub fn apply_terrain_noise(
         .set_persistence(terrain_noise.persistence() as f64)
         .set_lacunarity(terrain_noise.lacunarity() as f64);
 
-    let vertices = mesh
+    let positions = mesh
         .vertices()
         .iter()
         .map(|vertex| {
             let Some(direction) = vertex.position.normalized() else {
-                return *vertex;
+                return vertex.position;
             };
             let raw = noise.get([direction.x as f64, direction.y as f64, direction.z as f64]);
             let clamped = (raw as f32).clamp(-1.0, 1.0);
@@ -154,11 +154,9 @@ pub fn apply_terrain_noise(
                 signed = bin_center_unit * 2.0 - 1.0;
             }
             let new_radius = (1.0 + signed * terrain_noise.amplitude()).max(MIN_VERTEX_RADIUS);
-            Vertex {
-                position: direction.scale(new_radius),
-            }
+            direction.scale(new_radius)
         })
         .collect();
 
-    Mesh::new(vertices, mesh.triangles().to_vec())
+    Ok(mesh.with_repositioned(positions))
 }

@@ -5,11 +5,11 @@ Feature: Scrambling a mesh's existing vertices along all three axes
     When the icosahedron mesh is scrambled with seed 7 and a VertexScrambleRange of low -0.1 and high 0.1
     Then the resulting Mesh is not identical to the icosahedron mesh
 
-  Scenario: Scrambling preserves vertex count and triangle topology
+  Scenario: Scrambling preserves vertex count and face topology
     Given an icosahedron mesh
     When the icosahedron mesh is scrambled with seed 7 and a VertexScrambleRange of low -0.1 and high 0.1
     Then the resulting Mesh has 12 vertices
-    And the resulting Mesh has the same triangles as the icosahedron mesh
+    And the resulting Mesh has the same faces as the icosahedron mesh
 
   Scenario: Scrambling with a zero-width VertexScrambleRange at zero leaves the mesh unchanged
     Given an icosahedron mesh
@@ -45,6 +45,6 @@ Feature: Scrambling a mesh's existing vertices along all three axes
 
   Scenario: Scrambling an arbitrary mesh proves it is not icosahedron-specific
     Given a Mesh with 3 vertices at the corners of an arbitrary triangle
-    And a Triangle referencing indices 0, 1, 2
+    And a triangle index-triple (0, 1, 2)
     When that mesh is scrambled with seed 7 and a VertexScrambleRange of low -0.1 and high 0.1
     Then the resulting Mesh has 3 vertices

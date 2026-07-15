@@ -16,7 +16,7 @@ fn scrambled_component(component: f32, factor_offset: f32) -> f32 {
     }
 }
 
-fn scrambled(vertex: &Vertex, rng: &mut Pcg32, range: VertexScrambleRange) -> Vertex {
+fn scrambled(vertex: &Vertex, rng: &mut Pcg32, range: VertexScrambleRange) -> Vec3 {
     let a = rng.random_range(range.low()..=range.high());
     let b = rng.random_range(range.low()..=range.high());
     let c = rng.random_range(range.low()..=range.high());
@@ -28,14 +28,12 @@ fn scrambled(vertex: &Vertex, rng: &mut Pcg32, range: VertexScrambleRange) -> Ve
     );
     let radius = jittered.length();
     if radius == 0.0 {
-        return Vertex { position: jittered };
+        return jittered;
     }
     if radius < MIN_VERTEX_RADIUS {
-        return Vertex {
-            position: jittered.scale(MIN_VERTEX_RADIUS / radius),
-        };
+        return jittered.scale(MIN_VERTEX_RADIUS / radius);
     }
-    Vertex { position: jittered }
+    jittered
 }
 
 pub fn scramble_vertices(
@@ -44,10 +42,10 @@ pub fn scramble_vertices(
     range: VertexScrambleRange,
 ) -> Result<Mesh, MeshError> {
     let mut rng = Pcg32::seed_from_u64(seed.value());
-    let vertices = mesh
+    let positions = mesh
         .vertices()
         .iter()
         .map(|vertex| scrambled(vertex, &mut rng, range))
         .collect();
-    Mesh::new(vertices, mesh.triangles().to_vec())
+    Ok(mesh.with_repositioned(positions))
 }

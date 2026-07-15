@@ -1,6 +1,5 @@
 use planet_core::color::rgb::Rgb;
 use planet_core::geometry::mesh::Mesh;
-use planet_core::geometry::vec3::Vec3;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Vertex {
@@ -10,39 +9,31 @@ pub struct Vertex {
 }
 
 pub fn mesh_render_vertices(mesh: &Mesh, colors: &[Rgb]) -> Vec<Vertex> {
-    mesh.triangles()
+    mesh.faces()
         .iter()
-        .flat_map(|triangle| {
-            let a = mesh.vertices()[triangle.a].position;
-            let b = mesh.vertices()[triangle.b].position;
-            let c = mesh.vertices()[triangle.c].position;
-            let normal = b
-                .sub(a)
-                .cross(c.sub(a))
-                .normalized()
-                .unwrap_or(Vec3::new(0.0, 0.0, 0.0));
-            let normal = [normal.x, normal.y, normal.z];
-            let corner_colors = [colors[triangle.a], colors[triangle.b], colors[triangle.c]];
-            [a, b, c]
-                .into_iter()
-                .zip(corner_colors)
-                .map(move |(position, color)| Vertex {
-                    position: [position.x, position.y, position.z],
-                    normal,
+        .flat_map(|face| {
+            face.edges.iter().map(|&edge_index| {
+                let source_index = mesh.edges()[edge_index].start;
+                let vertex = &mesh.vertices()[source_index];
+                let color = colors[source_index];
+                Vertex {
+                    position: [vertex.position.x, vertex.position.y, vertex.position.z],
+                    normal: [vertex.normal.x, vertex.normal.y, vertex.normal.z],
                     color: [color.r(), color.g(), color.b()],
-                })
+                }
+            })
         })
         .collect()
 }
 
 pub fn mesh_render_indices(mesh: &Mesh) -> Vec<u32> {
-    (0..3 * mesh.triangles().len())
+    (0..3 * mesh.faces().len())
         .map(|index| index as u32)
         .collect()
 }
 
 pub fn mesh_render_line_indices(mesh: &Mesh) -> Vec<u32> {
-    (0..mesh.triangles().len())
+    (0..mesh.faces().len())
         .flat_map(|i| {
             let base = (3 * i) as u32;
             [base, base + 1, base + 1, base + 2, base + 2, base]

@@ -1,5 +1,6 @@
 use crate::geometry::mesh::Mesh;
 use crate::presets::preset::Preset;
+use crate::processor::finalize_normals::finalize_normals;
 use crate::processor::vertex_scramble::scramble_vertices;
 use crate::processor::vertex_scramble_range::VertexScrambleRange;
 use crate::subdivision::seed::Seed;
@@ -38,6 +39,7 @@ impl PlanetBuilder {
                     .sample(vertex.position.length())
             })
             .collect();
+        let mesh = finalize_normals(&mesh);
         Ok(Planet {
             mesh,
             colors,

@@ -1,5 +1,5 @@
 use cucumber::{World as _, given, then, when};
-use planet_core::geometry::mesh::{Mesh, Triangle, Vertex};
+use planet_core::geometry::mesh::Mesh;
 use planet_core::geometry::vec3::Vec3;
 use planet_core::subdivision::seed::Seed;
 use planet_core::subdivision::steps::Steps;
@@ -14,8 +14,8 @@ type Invocations = Rc<RefCell<Vec<(Mesh, usize)>>>;
 #[derive(Debug, Default, cucumber::World)]
 pub struct SubdivideWorld {
     icosahedron_mesh: Option<Mesh>,
-    vertices: Vec<Vertex>,
-    triangles: Vec<Triangle>,
+    positions: Vec<Vec3>,
+    triangles: Vec<(usize, usize, usize)>,
     edge_endpoints: Option<(Vec3, Vec3)>,
     result: Option<Mesh>,
     first_mesh: Option<Mesh>,
@@ -28,7 +28,7 @@ impl SubdivideWorld {
         if let Some(mesh) = &self.icosahedron_mesh {
             mesh.clone()
         } else {
-            Mesh::new(self.vertices.clone(), self.triangles.clone())
+            Mesh::new(self.positions.clone(), self.triangles.clone())
                 .expect("source Mesh construction failed")
         }
     }
@@ -62,33 +62,27 @@ fn given_icosahedron(world: &mut SubdivideWorld) {
 
 #[given("a Mesh with 3 vertices at the corners of an arbitrary triangle")]
 fn given_arbitrary_triangle_vertices(world: &mut SubdivideWorld) {
-    world.vertices = vec![
-        Vertex {
-            position: Vec3::new(0.0, 0.0, 0.0),
-        },
-        Vertex {
-            position: Vec3::new(2.0, 0.0, 0.0),
-        },
-        Vertex {
-            position: Vec3::new(0.0, 2.0, 1.0),
-        },
+    world.positions = vec![
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(2.0, 0.0, 0.0),
+        Vec3::new(0.0, 2.0, 1.0),
     ];
 }
 
-#[given(regex = r"^a Triangle referencing indices (\d+), (\d+), (\d+)$")]
+#[given(regex = r"^a triangle index-triple \((\d+), (\d+), (\d+)\)$")]
 fn given_triangle(world: &mut SubdivideWorld, a: usize, b: usize, c: usize) {
-    world.triangles.push(Triangle::new(a, b, c));
+    world.triangles.push((a, b, c));
 }
 
-#[given("the two vertices of the first triangle's first edge in the icosahedron mesh")]
+#[given("the two vertices of the first face's first edge in the icosahedron mesh")]
 fn given_first_edge_endpoints(world: &mut SubdivideWorld) {
     let mesh = world
         .icosahedron_mesh
         .as_ref()
         .expect("icosahedron mesh not given");
-    let triangle = mesh.triangles()[0];
-    let a = mesh.vertices()[triangle.a].position;
-    let b = mesh.vertices()[triangle.b].position;
+    let first_edge = mesh.edges()[mesh.faces()[0].edges[0]];
+    let a = mesh.vertices()[first_edge.start].position;
+    let b = mesh.vertices()[first_edge.end].position;
     world.edge_endpoints = Some((a, b));
 }
 
@@ -147,9 +141,9 @@ fn when_subdivided_with_callback(world: &mut SubdivideWorld, steps: usize, seed:
     world.result = Some(subdivide(&source, args).expect("subdivide() failed"));
 }
 
-#[then(regex = r"^the resulting Mesh has (\d+) triangles$")]
-fn then_triangle_count(world: &mut SubdivideWorld, count: usize) {
-    assert_eq!(world.result().triangles().len(), count);
+#[then(regex = r"^the resulting Mesh has (\d+) faces$")]
+fn then_face_count(world: &mut SubdivideWorld, count: usize) {
+    assert_eq!(world.result().faces().len(), count);
 }
 
 #[then(regex = r"^the resulting Mesh has (\d+) vertices$")]
@@ -265,12 +259,12 @@ fn then_callback_invocation_count(world: &mut SubdivideWorld, count: usize) {
 }
 
 #[then(
-    regex = r"^the update callback's (\d+)(?:st|nd|rd|th) invocation received a Mesh with (\d+) triangles$"
+    regex = r"^the update callback's (\d+)(?:st|nd|rd|th) invocation received a Mesh with (\d+) faces$"
 )]
-fn then_callback_invocation_triangles(world: &mut SubdivideWorld, index: usize, count: usize) {
+fn then_callback_invocation_faces(world: &mut SubdivideWorld, index: usize, count: usize) {
     let invocations = world.invocations();
     let (mesh, round) = &invocations[index - 1];
-    assert_eq!(mesh.triangles().len(), count);
+    assert_eq!(mesh.faces().len(), count);
     assert_eq!(*round, index);
 }
 

@@ -14,38 +14,28 @@ mod tests {
     use std::rc::Rc;
 
     use super::compose_mesh;
-    use crate::geometry::mesh::{Mesh, MeshError, Vertex};
+    use crate::geometry::mesh::{Mesh, MeshError};
     use crate::geometry::vec3::Vec3;
     use crate::processor::mesh_processor::MeshProcessor;
 
     #[test]
     fn applies_first_then_second() {
-        let mesh = Mesh::new(
-            vec![Vertex {
-                position: Vec3::new(1.0, 0.0, 0.0),
-            }],
-            vec![],
-        )
-        .expect("valid mesh fixture");
+        let mesh = Mesh::new(vec![Vec3::new(1.0, 0.0, 0.0)], vec![]).expect("valid mesh fixture");
         let double: MeshProcessor = Box::new(|mesh: &Mesh| {
-            let vertices = mesh
+            let positions = mesh
                 .vertices()
                 .iter()
-                .map(|vertex| Vertex {
-                    position: vertex.position.scale(2.0),
-                })
+                .map(|vertex| vertex.position.scale(2.0))
                 .collect();
-            Mesh::new(vertices, mesh.triangles().to_vec())
+            Ok(mesh.with_repositioned(positions))
         });
         let add_one_x: MeshProcessor = Box::new(|mesh: &Mesh| {
-            let vertices = mesh
+            let positions = mesh
                 .vertices()
                 .iter()
-                .map(|vertex| Vertex {
-                    position: vertex.position.add(Vec3::new(1.0, 0.0, 0.0)),
-                })
+                .map(|vertex| vertex.position.add(Vec3::new(1.0, 0.0, 0.0)))
                 .collect();
-            Mesh::new(vertices, mesh.triangles().to_vec())
+            Ok(mesh.with_repositioned(positions))
         });
 
         let result = compose_mesh(double, add_one_x)(&mesh).expect("compose_mesh should succeed");

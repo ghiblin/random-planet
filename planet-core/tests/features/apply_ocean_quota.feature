@@ -15,11 +15,11 @@ Feature: Flattening a mesh's lowest-radius vertices to a shared sea level
     When that mesh is flattened with an OceanQuota of 1.0
     Then the resulting Mesh has vertex radii 1.1, 1.1, 1.1
 
-  Scenario: Flattening preserves vertex count and triangle topology
+  Scenario: Flattening preserves vertex count and face topology
     Given an icosahedron mesh
     When the icosahedron mesh is flattened with an OceanQuota of 0.4
     Then the resulting Mesh has 12 vertices
-    And the resulting Mesh has the same triangles as the icosahedron mesh
+    And the resulting Mesh has the same faces as the icosahedron mesh
 
   Scenario: Flattening a mesh with all-equal radii is a no-op
     Given an icosahedron mesh

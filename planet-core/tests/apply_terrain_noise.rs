@@ -1,5 +1,5 @@
 use cucumber::{World as _, given, then, when};
-use planet_core::geometry::mesh::{Mesh, Vertex};
+use planet_core::geometry::mesh::Mesh;
 use planet_core::geometry::vec3::Vec3;
 use planet_core::processor::terrain_noise::{TerrainNoise, apply_terrain_noise};
 use planet_core::subdivision::seed::Seed;
@@ -10,7 +10,7 @@ use planet_core::subdivision::subdivision_mode::SubdivisionMode;
 #[derive(Debug, Default, cucumber::World)]
 pub struct ApplyTerrainNoiseWorld {
     icosahedron_mesh: Option<Mesh>,
-    vertices: Vec<Vertex>,
+    positions: Vec<Vec3>,
     subdivided_mesh: Option<Mesh>,
     terrain_noise: Option<TerrainNoise>,
     source: Option<Mesh>,
@@ -26,8 +26,16 @@ impl ApplyTerrainNoiseWorld {
         } else if let Some(mesh) = &self.icosahedron_mesh {
             mesh.clone()
         } else {
-            Mesh::new(self.vertices.clone(), vec![]).expect("source Mesh construction failed")
+            Mesh::new(self.positions.clone(), vec![]).expect("source Mesh construction failed")
         }
+    }
+
+    fn face_corner_indices(mesh: &Mesh, face_index: usize) -> Vec<usize> {
+        mesh.faces()[face_index]
+            .edges
+            .iter()
+            .map(|&edge_index| mesh.edges()[edge_index].start)
+            .collect()
     }
 
     fn terrain_noise(&self) -> TerrainNoise {
@@ -63,14 +71,12 @@ fn given_subdivided_icosahedron(world: &mut ApplyTerrainNoiseWorld, steps: usize
 
 #[given("a Mesh with a vertex exactly at the origin")]
 fn given_vertex_at_origin(world: &mut ApplyTerrainNoiseWorld) {
-    world.vertices = vec![Vertex {
-        position: Vec3::new(0.0, 0.0, 0.0),
-    }];
+    world.positions = vec![Vec3::new(0.0, 0.0, 0.0)];
 }
 
 #[given("a Mesh with no vertices and no triangles")]
 fn given_empty_mesh(world: &mut ApplyTerrainNoiseWorld) {
-    world.vertices = vec![];
+    world.positions = vec![];
 }
 
 #[given(regex = r"^a TerrainNoise with amplitude (-?\d+(?:\.\d+)?)$")]
@@ -237,13 +243,13 @@ fn then_vertex_count(world: &mut ApplyTerrainNoiseWorld, count: usize) {
     assert_eq!(world.result().vertices().len(), count);
 }
 
-#[then("the resulting Mesh has the same triangles as the icosahedron mesh")]
-fn then_same_triangles(world: &mut ApplyTerrainNoiseWorld) {
+#[then("the resulting Mesh has the same faces as the icosahedron mesh")]
+fn then_same_faces(world: &mut ApplyTerrainNoiseWorld) {
     let source = world
         .icosahedron_mesh
         .as_ref()
         .expect("icosahedron mesh not given");
-    assert_eq!(world.result().triangles(), source.triangles());
+    assert_eq!(world.result().faces(), source.faces());
 }
 
 fn angle_at(p: Vec3, q: Vec3, r: Vec3) -> f32 {
@@ -254,18 +260,19 @@ fn angle_at(p: Vec3, q: Vec3, r: Vec3) -> f32 {
 }
 
 #[then(
-    regex = r"^every triangle in the resulting Mesh has all 3 angles between (\d+) and (\d+) degrees$"
+    regex = r"^every face in the resulting Mesh has all 3 angles between (\d+) and (\d+) degrees$"
 )]
 fn then_angles_within_bound(world: &mut ApplyTerrainNoiseWorld, min_angle: f32, max_angle: f32) {
     let mesh = world.result();
-    for triangle in mesh.triangles() {
-        let a = mesh.vertices()[triangle.a].position;
-        let b = mesh.vertices()[triangle.b].position;
-        let c = mesh.vertices()[triangle.c].position;
+    for face_index in 0..mesh.faces().len() {
+        let corners = ApplyTerrainNoiseWorld::face_corner_indices(mesh, face_index);
+        let a = mesh.vertices()[corners[0]].position;
+        let b = mesh.vertices()[corners[1]].position;
+        let c = mesh.vertices()[corners[2]].position;
         for angle in [angle_at(b, a, c), angle_at(a, b, c), angle_at(a, c, b)] {
             assert!(
                 angle >= min_angle && angle <= max_angle,
-                "triangle angle {angle} outside [{min_angle}, {max_angle}]"
+                "face angle {angle} outside [{min_angle}, {max_angle}]"
             );
         }
     }
