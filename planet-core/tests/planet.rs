@@ -181,6 +181,21 @@ fn then_at_least_one_radius_above(world: &mut PlanetWorld, bound: f32) {
     );
 }
 
+#[then("every vertex of the resulting Planet's mesh has a normal with unit length")]
+fn then_every_vertex_unit_normal(world: &mut PlanetWorld) {
+    let planet = world
+        .first_planet
+        .as_ref()
+        .expect("first Planet not generated");
+    for vertex in planet.mesh().vertices() {
+        let length = vertex.normal.length();
+        assert!(
+            (length - 1.0).abs() < 1e-4,
+            "expected unit-length normal, got length {length}"
+        );
+    }
+}
+
 #[then(
     regex = r"^every vertex of the resulting Planet's mesh has a radius less than or equal to (\d+(?:\.\d+)?)$"
 )]

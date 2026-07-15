@@ -19,6 +19,7 @@ Feature: Planet aggregate generation
     Given a Planet generated with seed 3 and the Rocky preset at max depth 2
     Then every vertex of the resulting Planet's mesh has a radius less than or equal to 1.22
     And every vertex of the resulting Planet's mesh has a radius greater than or equal to 0.78
+    And every vertex of the resulting Planet's mesh has a normal with unit length
 
   Scenario: A Planet generated at zero max depth keeps the icosahedron's topology, shaped by terrain noise
     Given a Planet generated with seed 1 and the Earthy preset at max depth 0
@@ -64,6 +65,7 @@ Feature: Planet aggregate generation
     And the resulting Planet's mesh has the same faces as the icosahedron mesh
     And the resulting Planet's mesh is not identical to the icosahedron mesh
     And the resulting Planet has no max depth set
+    And every vertex of the resulting Planet's mesh has a normal with unit length
 
   Scenario: Subdividing a created Planet produces a new Planet at the requested max depth
     Given a Planet created with the Earthy preset and seed 1

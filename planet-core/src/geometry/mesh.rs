@@ -148,3 +148,29 @@ impl Mesh {
         cube(side)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn with_repositioned_preserves_normal_and_edges() {
+        let base = Mesh::new(vec![Vec3::new(0.0, 0.0, 0.0)], vec![]).expect("valid mesh fixture");
+        let distinguishable_normal = Vec3::new(0.0, 1.0, 0.0);
+        let vertex = Vertex {
+            position: base.vertices()[0].position,
+            normal: distinguishable_normal,
+            edges: vec![7, 8, 9],
+        };
+        let mesh = Mesh::from_parts(vec![vertex], base.edges().to_vec(), base.faces().to_vec());
+
+        let repositioned = mesh.with_repositioned(vec![Vec3::new(5.0, 5.0, 5.0)]);
+
+        assert_eq!(
+            repositioned.vertices()[0].position,
+            Vec3::new(5.0, 5.0, 5.0)
+        );
+        assert_eq!(repositioned.vertices()[0].normal, distinguishable_normal);
+        assert_eq!(repositioned.vertices()[0].edges, vec![7, 8, 9]);
+    }
+}
