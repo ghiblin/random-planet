@@ -357,3 +357,7 @@ The second scenario reuses this feature file's existing "Every vertex's color ma
 25. No `unwrap()`/`panic!()`/`.expect()` in production code
 26. All BDD scenarios above are backed by real `cucumber` step definitions — no scenario left as markdown prose
 27. Manual, in-browser check (per `000-architecture.md`'s GPU/pixel-output exemption): a freshly generated Earthy planet visibly shows blue ocean (not sand-brown) and taller, more pronounced mountains than before this addendum
+
+### Further retuning — amplitude 0.50 → 0.60
+
+Direct follow-up user feedback asked for still-taller mountains after this addendum's initial `0.50` landed. Per this project's own established convention (`017`, `018`, `019`: "concrete, buildable starting constants, not a frozen aesthetic contract"), `Preset::Earthy`'s `TerrainNoise.amplitude` is retuned once more, to `0.60` (verified, seed 5 depth 3: true max radius ≈`1.233` → ≈`1.28`). The exact radius bound (acceptance criterion 20) updates from `[0.5, 1.5]` to `[0.4, 1.6]`, per `apply_terrain_noise`'s unchanged bound formula. No other field or the ocean-color fix (`vertex_color`) is affected by this retune.

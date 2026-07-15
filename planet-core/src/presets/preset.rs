@@ -41,7 +41,7 @@ impl Preset {
                     octaves: 4,
                     persistence: 0.5,
                     lacunarity: 2.0,
-                    amplitude: 0.50,
+                    amplitude: 0.60,
                     redistribution_exponent: 1.4,
                     terrace_levels: None,
                 },
