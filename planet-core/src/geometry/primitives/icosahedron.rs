@@ -1,4 +1,4 @@
-use crate::geometry::mesh::{Mesh, MeshError, Triangle, Vertex};
+use crate::geometry::mesh::{Mesh, MeshError};
 use crate::geometry::vec3::Vec3;
 
 pub(crate) fn icosahedron() -> Result<Mesh, MeshError> {
@@ -20,14 +20,12 @@ pub(crate) fn icosahedron() -> Result<Mesh, MeshError> {
         (-phi, 0.0, 1.0),
     ];
 
-    let vertices = coordinates
+    let positions = coordinates
         .into_iter()
-        .map(|(x, y, z)| Vertex {
-            position: Vec3::new(x, y, z).scale(scale),
-        })
+        .map(|(x, y, z)| Vec3::new(x, y, z).scale(scale))
         .collect();
 
-    let triangles = [
+    let triangles = vec![
         (0, 11, 5),
         (0, 5, 1),
         (0, 1, 7),
@@ -48,10 +46,7 @@ pub(crate) fn icosahedron() -> Result<Mesh, MeshError> {
         (6, 2, 10),
         (8, 6, 7),
         (9, 8, 1),
-    ]
-    .into_iter()
-    .map(|(a, b, c)| Triangle::new(a, b, c))
-    .collect();
+    ];
 
-    Mesh::new(vertices, triangles)
+    Mesh::new(positions, triangles)
 }

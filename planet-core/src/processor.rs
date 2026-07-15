@@ -1,4 +1,5 @@
 pub(crate) mod compose_mesh;
+pub mod finalize_normals;
 pub(crate) mod identity_mesh;
 pub(crate) mod jitter;
 pub(crate) mod mesh_processor;

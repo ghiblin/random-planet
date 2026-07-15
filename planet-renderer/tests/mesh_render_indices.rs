@@ -1,5 +1,5 @@
 use cucumber::{World as _, given, then, when};
-use planet_core::geometry::mesh::{Mesh, Triangle, Vertex as CoreVertex};
+use planet_core::geometry::mesh::Mesh;
 use planet_core::geometry::vec3::Vec3;
 use planet_renderer::gpu::buffers::mesh_render_indices;
 
@@ -21,14 +21,9 @@ fn given_empty_mesh(world: &mut MeshRenderIndicesWorld) {
 
 #[given(regex = r"^a Mesh with (\d+) triangles$")]
 fn given_many_triangles(world: &mut MeshRenderIndicesWorld, count: usize) {
-    let vertices = vec![
-        CoreVertex {
-            position: Vec3::new(0.0, 0.0, 0.0)
-        };
-        3
-    ];
-    let triangles = vec![Triangle::new(0, 1, 2); count];
-    world.mesh = Some(Mesh::new(vertices, triangles).expect("mesh construction failed"));
+    let positions = vec![Vec3::new(0.0, 0.0, 0.0); 3];
+    let triangles = vec![(0, 1, 2); count];
+    world.mesh = Some(Mesh::new(positions, triangles).expect("mesh construction failed"));
 }
 
 #[when("the mesh is converted into render indices")]

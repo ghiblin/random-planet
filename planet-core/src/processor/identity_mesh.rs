@@ -7,18 +7,12 @@ pub(crate) fn identity_mesh() -> MeshProcessor {
 #[cfg(test)]
 mod tests {
     use super::identity_mesh;
-    use crate::geometry::mesh::{Mesh, Vertex};
+    use crate::geometry::mesh::Mesh;
     use crate::geometry::vec3::Vec3;
 
     #[test]
     fn identity_mesh_returns_the_mesh_unchanged() {
-        let mesh = Mesh::new(
-            vec![Vertex {
-                position: Vec3::new(1.0, 2.0, 3.0),
-            }],
-            vec![],
-        )
-        .expect("valid mesh fixture");
+        let mesh = Mesh::new(vec![Vec3::new(1.0, 2.0, 3.0)], vec![]).expect("valid mesh fixture");
 
         let result = identity_mesh()(&mesh).expect("identity never fails");
 

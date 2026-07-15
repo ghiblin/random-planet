@@ -6,6 +6,7 @@ use crate::geometry::mesh::{Mesh, MeshError};
 use crate::presets::preset::Preset;
 use crate::presets::preset_params::PresetParams;
 use crate::processor::compose_mesh::compose_mesh;
+use crate::processor::finalize_normals::finalize_normals;
 use crate::processor::identity_mesh::identity_mesh;
 use crate::processor::mesh_processor::MeshProcessor;
 use crate::processor::ocean_quota::apply_ocean_quota;
@@ -110,6 +111,7 @@ impl Planet {
                 vertex_color(vertex.position.length(), sea_level, params.color_gradient())
             })
             .collect();
+        let mesh = finalize_normals(&mesh);
         Ok(Planet {
             mesh,
             colors,

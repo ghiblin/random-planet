@@ -17,11 +17,21 @@ at `planet-pr-validate` review time — the same way every other convention in t
 file (naming, one-type-per-file) is enforced — not by an automated test.
 
 `planet-core`'s concerns:
-- `geometry/` — `vec3.rs` (`Vec3`), `mesh.rs` (`Vertex`, `Triangle`, `Mesh`, `MeshError`):
-  spatial value types, no algorithm; plus a nested `primitives/` sub-concern
-  (`icosahedron.rs`, `cube.rs`, both `pub(crate)` — exposed publicly only via
-  `Mesh::icosahedron()` / `Mesh::cube()`, never directly) for mesh-construction
-  functions built entirely from `geometry`'s own types
+- `geometry/` — `vec3.rs` (`Vec3`), `vertex.rs` (`Vertex`), `edge.rs` (`Edge`),
+  `face.rs` (`Face`), `mesh.rs` (`Mesh`, `MeshError`): spatial value types, no
+  algorithm. `Mesh` is a `Face`/`Edge`/`Vertex` adjacency graph — `Vertex` carries
+  `position`, `normal`, and `edges` (indices of every `Edge` where it is the
+  `start`); `Edge` carries `start`/`end` vertex indices and the one `Face` it bounds
+  (two triangles sharing a geometric edge each get their own `Edge`, no shared/twin
+  pointer); `Face` carries its boundary `edges`, `order` (`edges.len()`, always 3
+  today), and `normal`. `Mesh::new` takes bare `Vec<Vec3>` positions plus
+  `Vec<(usize, usize, usize)>` triangle index-triples (no dedicated `Triangle` type)
+  and builds the graph; `Vertex.normal`/`Face.normal` start as `Vec3::ZERO`
+  placeholders, populated only by `processor/finalize_normals.rs`'s
+  `finalize_normals` once every position-mutating step has completed; plus a nested
+  `primitives/` sub-concern (`icosahedron.rs`, `cube.rs`, both `pub(crate)` — exposed
+  publicly only via `Mesh::icosahedron()` / `Mesh::cube()`, never directly) for
+  mesh-construction functions built entirely from `geometry`'s own types
 - `subdivision/` — `edge.rs` (`EdgeKey`, `EdgeCache`, `pub(crate)`), `steps.rs`
   (`Steps`, `StepsError`), `seed.rs` (`Seed`), `subdivision_mode.rs`
   (`SubdivisionMode` — a seedless, preset-shape enum selecting a subdivision
@@ -53,7 +63,13 @@ file (naming, one-type-per-file) is enforced — not by an automated test.
   plus the whole-mesh `MeshProcessor` building blocks `Planet::subdivide` composes
   into its post-subdivision pipeline (`mesh_processor.rs` (`MeshProcessor`,
   `pub(crate)`), `identity_mesh.rs` (`identity_mesh`, `pub(crate)`),
-  `compose_mesh.rs` (`compose_mesh`, `pub(crate)`))
+  `compose_mesh.rs` (`compose_mesh`, `pub(crate)`));
+  plus `finalize_normals.rs` (`finalize_normals`, `pub` — computes each `Face`'s flat
+  normal and each `Vertex`'s area-weighted normal from the mesh's final geometry;
+  called once by `Planet::subdivide`/`PlanetBuilder::build` after every
+  position-mutating step, and directly by `planet-renderer`'s `app.rs` on
+  mid-subdivision animation frames, the same way it already calls
+  `ColorGradient::sample` directly on those frames)
 - `color/` — elevation-to-color mapping value types, no algorithm: `rgb.rs` (`Rgb`,
   `RgbError`), `color_gradient.rs` (`ColorGradient`, `ColorGradientError`)
 - `presets/` — bundles the subdivision/color knobs into named, pre-tuned presets:
@@ -93,8 +109,11 @@ generated `Mesh` via `Planet`'s own lifecycle operations (`Planet::builder()...b
 to create one, `Planet::subdivide()` to subdivide one), never via `Mesh::icosahedron()`,
 `subdivide()`, `SubdivisionMode`, `scramble_vertices()`, or any other generation
 primitive directly. Reading an already-obtained `Mesh`'s own data (`vertices()`,
-`triangles()`, e.g. `planet-renderer`'s `gpu/buffers.rs`) is unaffected — the rule is
-about how a `Mesh` is *produced*, not how its data is *read*.
+`edges()`, `faces()`, e.g. `planet-renderer`'s `gpu/buffers.rs`) is unaffected — the
+rule is about how a `Mesh` is *produced*, not how its data is *read*. Deriving
+read-only shading data from an already-produced `Mesh` is likewise unaffected — e.g.
+`finalize_normals`, called directly by `planet-renderer`'s `app.rs` on mid-subdivision
+animation frames, the same way it already calls `ColorGradient::sample` on them.
 
 This is a documentation rule, enforced at `planet-pr-validate` review time, not by the
 compiler: every generation primitive stays `pub` because `planet-core`'s own BDD/unit

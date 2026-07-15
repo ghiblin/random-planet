@@ -52,15 +52,15 @@ Feature: Shaping a mesh's elevation from a continuous noise field
     When terrain noise is applied to that mesh with seed 7 and that TerrainNoise
     Then the resulting Mesh is identical to the original mesh
 
-  Scenario: Applying terrain noise preserves vertex count and triangle topology
+  Scenario: Applying terrain noise preserves vertex count and face topology
     Given an icosahedron mesh
     And a TerrainNoise with amplitude 0.2
     When terrain noise is applied to that mesh with seed 7 and that TerrainNoise
     Then the resulting Mesh has 12 vertices
-    And the resulting Mesh has the same triangles as the icosahedron mesh
+    And the resulting Mesh has the same faces as the icosahedron mesh
 
   Scenario: Terrain noise with zero amplitude produces a geodesic sphere with no degenerate sliver triangles
     Given an icosahedron mesh subdivided 8 steps with SubdivisionMode::UniformRedSplit and seed 7
     And a TerrainNoise with amplitude 0.0
     When terrain noise is applied to that mesh with seed 7 and that TerrainNoise
-    Then every triangle in the resulting Mesh has all 3 angles between 8 and 155 degrees
+    Then every face in the resulting Mesh has all 3 angles between 8 and 155 degrees

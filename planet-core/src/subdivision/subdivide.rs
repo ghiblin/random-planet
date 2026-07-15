@@ -1,14 +1,15 @@
 use super::edge::EdgeCache;
 use super::subdivision_args::SubdivisionArgs;
-use crate::geometry::mesh::{Mesh, MeshError, Triangle, Vertex};
+use crate::geometry::mesh::{Mesh, MeshError};
+use crate::geometry::vertex::Vertex;
 
 pub(crate) trait SubdivisionStrategy {
     fn split_triangle(
         &mut self,
         vertices: &mut Vec<Vertex>,
         edges: &mut EdgeCache,
-        triangle: Triangle,
-    ) -> Vec<Triangle>;
+        triangle: (usize, usize, usize),
+    ) -> Vec<(usize, usize, usize)>;
 }
 
 // A triangle produces at most 4 children (red split) and at most one new vertex
@@ -21,16 +22,28 @@ fn max_round_triangles(triangle_count: usize) -> usize {
     4 * triangle_count
 }
 
+fn face_triangle(mesh: &Mesh, face_index: usize) -> (usize, usize, usize) {
+    let face = &mesh.faces()[face_index];
+    let corners: Vec<usize> = face
+        .edges
+        .iter()
+        .map(|&edge_index| mesh.edges()[edge_index].start)
+        .collect();
+    (corners[0], corners[1], corners[2])
+}
+
 fn split_round(mesh: &Mesh, strategy: &mut dyn SubdivisionStrategy) -> Result<Mesh, MeshError> {
-    let triangle_count = mesh.triangles().len();
-    let mut vertices = mesh.vertices().to_vec();
+    let triangle_count = mesh.faces().len();
+    let mut vertices: Vec<Vertex> = mesh.vertices().to_vec();
     vertices.reserve(max_new_vertices(triangle_count));
     let mut edges = EdgeCache::new();
     let mut triangles = Vec::with_capacity(max_round_triangles(triangle_count));
-    for triangle in mesh.triangles() {
-        triangles.extend(strategy.split_triangle(&mut vertices, &mut edges, *triangle));
+    for face_index in 0..mesh.faces().len() {
+        let triangle = face_triangle(mesh, face_index);
+        triangles.extend(strategy.split_triangle(&mut vertices, &mut edges, triangle));
     }
-    Mesh::new(vertices, triangles)
+    let positions = vertices.into_iter().map(|vertex| vertex.position).collect();
+    Mesh::new(positions, triangles)
 }
 
 pub fn subdivide(mesh: &Mesh, mut args: SubdivisionArgs) -> Result<Mesh, MeshError> {

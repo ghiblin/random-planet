@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::geometry::mesh::{Mesh, MeshError, Vertex};
+use crate::geometry::mesh::{Mesh, MeshError};
 
 const DEFAULT_OCEAN_QUOTA: f32 = 0.3;
 
@@ -57,23 +57,21 @@ pub fn apply_ocean_quota(mesh: &Mesh, quota: OceanQuota) -> Result<Mesh, MeshErr
     let index = ((quota.value() * radii.len() as f32) as usize).min(radii.len() - 1);
     let sea_level = radii[index];
 
-    let vertices = mesh
+    let positions = mesh
         .vertices()
         .iter()
         .map(|vertex| {
             let radius = vertex.position.length();
             if radius < sea_level {
                 match vertex.position.normalized() {
-                    Some(direction) => Vertex {
-                        position: direction.scale(sea_level),
-                    },
-                    None => *vertex,
+                    Some(direction) => direction.scale(sea_level),
+                    None => vertex.position,
                 }
             } else {
-                *vertex
+                vertex.position
             }
         })
         .collect();
 
-    Mesh::new(vertices, mesh.triangles().to_vec())
+    Ok(mesh.with_repositioned(positions))
 }

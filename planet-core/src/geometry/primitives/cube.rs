@@ -1,4 +1,4 @@
-use crate::geometry::mesh::{Mesh, MeshError, Triangle, Vertex};
+use crate::geometry::mesh::{Mesh, MeshError};
 use crate::geometry::vec3::Vec3;
 
 pub(crate) fn cube(side: f32) -> Result<Mesh, MeshError> {
@@ -7,7 +7,7 @@ pub(crate) fn cube(side: f32) -> Result<Mesh, MeshError> {
     }
 
     let half = side / 2.0;
-    let vertices = [
+    let positions = [
         (-half, -half, -half),
         (half, -half, -half),
         (half, half, -half),
@@ -18,12 +18,10 @@ pub(crate) fn cube(side: f32) -> Result<Mesh, MeshError> {
         (-half, half, half),
     ]
     .into_iter()
-    .map(|(x, y, z)| Vertex {
-        position: Vec3::new(x, y, z),
-    })
+    .map(|(x, y, z)| Vec3::new(x, y, z))
     .collect();
 
-    let triangles = [
+    let triangles = vec![
         // -Z
         (0, 2, 1),
         (0, 3, 2),
@@ -42,10 +40,7 @@ pub(crate) fn cube(side: f32) -> Result<Mesh, MeshError> {
         // +X
         (1, 2, 6),
         (1, 6, 5),
-    ]
-    .into_iter()
-    .map(|(a, b, c)| Triangle::new(a, b, c))
-    .collect();
+    ];
 
-    Mesh::new(vertices, triangles)
+    Mesh::new(positions, triangles)
 }

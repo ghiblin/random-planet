@@ -25,6 +25,25 @@ impl PlanetWorld {
     }
 }
 
+/// Each face's corner vertex indices, ignoring `normal` — used to compare mesh
+/// *topology* between a `Planet`'s mesh (already through `finalize_normals`, so its
+/// faces carry real normals) and a freshly-built `Mesh::icosahedron()` (whose faces
+/// still carry the `Vec3::ZERO` placeholder), where comparing `Face`s directly would
+/// spuriously fail on `normal` alone.
+fn face_topology(mesh: &Mesh) -> Vec<(usize, usize, usize)> {
+    mesh.faces()
+        .iter()
+        .map(|face| {
+            let corners: Vec<usize> = face
+                .edges
+                .iter()
+                .map(|&edge_index| mesh.edges()[edge_index].start)
+                .collect();
+            (corners[0], corners[1], corners[2])
+        })
+        .collect()
+}
+
 fn parse_preset(name: &str) -> Preset {
     match name {
         "Earthy" => Preset::Earthy,
@@ -162,6 +181,21 @@ fn then_at_least_one_radius_above(world: &mut PlanetWorld, bound: f32) {
     );
 }
 
+#[then("every vertex of the resulting Planet's mesh has a normal with unit length")]
+fn then_every_vertex_unit_normal(world: &mut PlanetWorld) {
+    let planet = world
+        .first_planet
+        .as_ref()
+        .expect("first Planet not generated");
+    for vertex in planet.mesh().vertices() {
+        let length = vertex.normal.length();
+        assert!(
+            (length - 1.0).abs() < 1e-4,
+            "expected unit-length normal, got length {length}"
+        );
+    }
+}
+
 #[then(
     regex = r"^every vertex of the resulting Planet's mesh has a radius less than or equal to (\d+(?:\.\d+)?)$"
 )]
@@ -225,17 +259,17 @@ fn then_color_count(world: &mut PlanetWorld, count: usize) {
     assert_eq!(planet.colors().len(), count);
 }
 
-#[then(regex = r"^the resulting Planet's mesh has exactly (\d+) triangles$")]
-fn then_exact_triangle_count(world: &mut PlanetWorld, count: usize) {
+#[then(regex = r"^the resulting Planet's mesh has exactly (\d+) faces$")]
+fn then_exact_face_count(world: &mut PlanetWorld, count: usize) {
     let planet = world
         .first_planet
         .as_ref()
         .expect("first Planet not generated");
-    assert_eq!(planet.mesh().triangles().len(), count);
+    assert_eq!(planet.mesh().faces().len(), count);
 }
 
-#[then(regex = r"^both resulting Planets' meshes have exactly (\d+) triangles$")]
-fn then_both_exact_triangle_count(world: &mut PlanetWorld, count: usize) {
+#[then(regex = r"^both resulting Planets' meshes have exactly (\d+) faces$")]
+fn then_both_exact_face_count(world: &mut PlanetWorld, count: usize) {
     let first = world
         .first_planet
         .as_ref()
@@ -244,8 +278,8 @@ fn then_both_exact_triangle_count(world: &mut PlanetWorld, count: usize) {
         .second_planet
         .as_ref()
         .expect("second Planet not generated");
-    assert_eq!(first.mesh().triangles().len(), count);
-    assert_eq!(second.mesh().triangles().len(), count);
+    assert_eq!(first.mesh().faces().len(), count);
+    assert_eq!(second.mesh().faces().len(), count);
 }
 
 #[then(regex = r"^the resulting Planet's mesh has (\d+) vertices$")]
@@ -257,14 +291,14 @@ fn then_vertex_count(world: &mut PlanetWorld, count: usize) {
     assert_eq!(planet.mesh().vertices().len(), count);
 }
 
-#[then("the resulting Planet's mesh has the same triangles as the icosahedron mesh")]
-fn then_same_triangles_as_icosahedron(world: &mut PlanetWorld) {
+#[then("the resulting Planet's mesh has the same faces as the icosahedron mesh")]
+fn then_same_faces_as_icosahedron(world: &mut PlanetWorld) {
     let planet = world
         .first_planet
         .as_ref()
         .expect("first Planet not generated");
     let icosahedron = Mesh::icosahedron().expect("Mesh::icosahedron() failed");
-    assert_eq!(planet.mesh().triangles(), icosahedron.triangles());
+    assert_eq!(face_topology(planet.mesh()), face_topology(&icosahedron));
 }
 
 #[then("the second Planet's mesh has more vertices than the first Planet's mesh")]
@@ -360,19 +394,19 @@ fn then_callback_invocation_base_mesh(world: &mut PlanetWorld, index: usize, rou
     let invocations = world.invocations();
     let (mesh, actual_round) = &invocations[index - 1];
     // The base mesh's positions are scrambled by `PlanetBuilder::build()`, but its
-    // topology (vertex count, triangle indices) still matches a pristine icosahedron.
+    // topology (vertex count, face indices) still matches a pristine icosahedron.
     assert_eq!(mesh.vertices().len(), icosahedron.vertices().len());
-    assert_eq!(mesh.triangles(), icosahedron.triangles());
+    assert_eq!(face_topology(mesh), face_topology(&icosahedron));
     assert_eq!(*actual_round, round);
 }
 
 #[then(
-    regex = r"^the progress callback's (\d+)(?:st|nd|rd|th) invocation received a Mesh with (\d+) triangles$"
+    regex = r"^the progress callback's (\d+)(?:st|nd|rd|th) invocation received a Mesh with (\d+) faces$"
 )]
-fn then_callback_invocation_triangles(world: &mut PlanetWorld, index: usize, count: usize) {
+fn then_callback_invocation_faces(world: &mut PlanetWorld, index: usize, count: usize) {
     let invocations = world.invocations();
     let (mesh, _) = &invocations[index - 1];
-    assert_eq!(mesh.triangles().len(), count);
+    assert_eq!(mesh.faces().len(), count);
 }
 
 #[given("a Planet built with no fields set")]
