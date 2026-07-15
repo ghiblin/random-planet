@@ -268,3 +268,92 @@ The second scenario is the direct regression test for "no preset-independent har
 16. All BDD scenarios above are backed by real `cucumber` step definitions in their respective `.feature` files and matching step-definition modules — no scenario left as markdown prose
 17. No change to `planet-renderer` — `app.rs` is untouched; the existing preset dropdown / depth slider continue to work with no code change
 18. Manual, in-browser check (per `000-architecture.md`'s GPU/pixel-output exemption): a freshly generated Earthy planet visibly shows a more exaggerated, "cartoonish" elevation range (taller peaks, deeper basins, more saturated use of the full color gradient) than before this feature, without introducing degenerate sliver triangles (still bounded by `018`'s existing `15°`–`135°` angle regression test, unaffected by this feature since it doesn't touch subdivision jitter magnitude)
+
+## Addendum — increase Earthy mountain height and fix ocean color
+
+**Trigger:** direct follow-up user feedback after this feature's initial implementation landed on this branch: (1) "increase the generated mountain height" and (2) "the ocean bug we already fixed was reverted — it's sand-brown instead of blue." Both are scoped to this same branch/feature per explicit user choice (avoiding a second worktree stacked on unmerged work).
+
+Investigation found **no actual prior ocean-color fix in git history** — the only reverted commit in this area (`feat/exaggerate-terrain-relief`, commit `2d36079`, reverted by `bf019df`) changed `apply_terrain_noise`'s radius formula from `1.0 + signed*amplitude` to `incoming_radius + signed*amplitude`; it never touched `ocean_quota.rs` or `Planet`'s color-computation step. The user's belief that "the ocean bug was already fixed" doesn't match the actual git history, but the underlying bug is real and independently reproducible — verified directly by generating an Earthy `Planet` (seed 5, depth 4, this branch's current amplitude 0.30) and inspecting its post-`apply_ocean_quota` vertex radii and sampled colors.
+
+**Root cause (ocean color), verified by direct numeric simulation:** `apply_ocean_quota` picks `sea_level` as the *raw radius value* at the ocean-quota-th percentile of the elevation distribution (the 40th percentile for Earthy's `OceanQuota(0.4)`), then flattens every vertex below it to exactly that radius. `Planet::subdivide` then colors every vertex — including these flattened ones — by sampling `ColorGradient` at its own final radius. Multi-octave fBm noise clusters tightly around its mean (1.0): sweeping `amplitude` from `0.3` up to `0.6` and `redistribution_exponent` from `1.4` down to `0.5` (simulated directly, not guessed), the 40th-percentile radius never moved below ≈`0.93` — always landing inside Earthy's "sand" color band (`0.90`–`1.00`), never the "water" bands (`0.70`–`0.90`). This is a **structural** mismatch, not a tuning problem: a rank-based percentile of a unimodal, mean-clustered distribution stays close to the median regardless of how the distribution's tails are stretched, so no `amplitude`/`redistribution_exponent` retuning can reliably push it into the water band. The fix decouples "which color represents the ocean" from "whatever raw radius the percentile happened to produce."
+
+**Root cause (mountain height):** the maximum reachable vertex radius scales essentially linearly with `amplitude` regardless of `redistribution_exponent` (verified numerically: `(max_radius - 1.0) / amplitude` stays ≈`0.49` across every tested `amplitude`/`exponent` combination), so `amplitude` is the correct, direct lever — no other `TerrainNoise` field needs to change.
+
+### Requirements (addendum)
+
+- `Preset::Earthy`'s `TerrainNoise.amplitude` increases from `0.30` to `0.50` — verified (numeric simulation, seed 5, depth 4) to raise the true maximum vertex radius from ≈`1.147` to ≈`1.245` and the 95th-percentile radius from ≈`1.067` to ≈`1.111`, a clearly taller "mountain" silhouette. All other `TerrainNoise` fields (`frequency`, `octaves`, `persistence`, `lacunarity`, `redistribution_exponent`, `terrace_levels`) and `ColorGradient` stops are unchanged — the existing snow-cap stop at `1.30` already comfortably accommodates the new, higher max without needing to widen the gradient again.
+- `Planet::subdivide` (`planet-core/src/planets/planet.rs`) gains a private helper, `vertex_color`, and changes its color-computation step: for presets with an `ocean_quota` configured, any vertex whose final radius equals the mesh's minimum radius (within a `1e-4` tolerance — the same tolerance this codebase's own test helpers already use for radius-equality checks) is colored by sampling `ColorGradient` at `f32::NEG_INFINITY` (which `ColorGradient::sample`'s existing clamp-to-first-stop behavior turns into the gradient's first stop's color, unconditionally) instead of at its own radius. This guarantees every ocean vertex renders as the gradient's configured deep-water color, regardless of where the percentile-derived sea level numerically lands. Presets without an `ocean_quota` (Volcano, Rocky) are completely unaffected — `sea_level` is `None` for them, and color sampling falls back to the existing radius-based `ColorGradient::sample` call, unchanged.
+- No change to `ColorGradient`, `apply_ocean_quota`, or `apply_terrain_noise` themselves — both root causes are fixed at their call sites (`Preset::Earthy`'s tuning, `Planet::subdivide`'s color step), not inside the reusable processor functions.
+- No change to `planet-renderer`.
+
+### Domain model involved (addendum)
+
+**`planet-core/src/presets/preset.rs`:** `Preset::Earthy`'s `TerrainNoise.amplitude`: `0.30` → `0.50` (only this one field changes).
+
+**`planet-core/src/planets/planet.rs`:**
+```rust
+fn vertex_color(radius: f32, sea_level: Option<f32>, gradient: &ColorGradient) -> Rgb {
+    const SEA_LEVEL_TOLERANCE: f32 = 1e-4;
+    match sea_level {
+        Some(sea_level) if (radius - sea_level).abs() <= SEA_LEVEL_TOLERANCE => {
+            gradient.sample(f32::NEG_INFINITY)
+        }
+        _ => gradient.sample(radius),
+    }
+}
+```
+`Planet::subdivide`'s color-computation step becomes:
+```rust
+let sea_level = params.ocean_quota().map(|_| {
+    mesh.vertices()
+        .iter()
+        .map(|vertex| vertex.position.length())
+        .fold(f32::INFINITY, f32::min)
+});
+let colors = mesh
+    .vertices()
+    .iter()
+    .map(|vertex| vertex_color(vertex.position.length(), sea_level, params.color_gradient()))
+    .collect();
+```
+
+**Unchanged:** `ColorGradient`/`ColorGradient::sample` itself, `apply_ocean_quota`, `apply_terrain_noise`, `Preset::Volcano`/`Preset::Rocky` entirely, `SubdivisionMode`/`PresetParams`/`SubdivisionArgs`.
+
+### Function/API contracts (addendum)
+
+**`vertex_color` (new, private):**
+- **Pre:** any `radius`, any `Option<f32>` sea level, any `ColorGradient`
+- **Post:** if `sea_level` is `Some(level)` and `radius` is within `1e-4` of `level`, returns `gradient.sample(f32::NEG_INFINITY)` (the gradient's first stop's color, unconditionally); otherwise returns `gradient.sample(radius)` — identical to the pre-addendum behavior
+
+**`Planet::subdivide` (updated contract):** all prior postconditions continue to hold (determinism, `max_depth` cap, exact triangle count, `colors().len() == mesh().vertices().len()`). New guarantee: for a preset with a configured `OceanQuota`, every vertex at the resulting mesh's minimum radius has a color equal to that preset's `ColorGradient`'s first configured stop's color. For a preset without an `OceanQuota`, colors are unchanged (still `color_gradient().sample(vertex.position.length())` for every vertex).
+
+### BDD scenarios (addendum)
+
+`planet-core/tests/features/planet.feature`:
+```gherkin
+  Scenario: Every vertex at an Earthy Planet's minimum radius renders as its deep-water color, not an elevation-coincidental one
+    Given a Planet generated with seed 5 and the Earthy preset at max depth 4
+    Then every vertex of the resulting Planet's mesh at its minimum vertex radius has a color equal to the Earthy preset's ColorGradient's first stop's color
+
+  Scenario: A preset without an OceanQuota still colors its lowest vertex purely from its elevation
+    Given a Planet generated with seed 7 and the Volcano preset at max depth 2
+    Then every vertex's color in the resulting Planet equals the Volcano preset's color gradient sampled at that vertex's radius
+
+  Scenario: Increasing Earthy's amplitude raises the reachable elevation bound
+    Given a Planet generated with seed 5 and the Earthy preset at max depth 3
+    Then every vertex of the resulting Planet's mesh has a radius greater than or equal to 0.5
+    And every vertex of the resulting Planet's mesh has a radius less than or equal to 1.5
+```
+The second scenario reuses this feature file's existing "Every vertex's color matches the preset's color gradient sampled at its radius" scenario verbatim — it already exists and already passes; it's the direct regression guard that `vertex_color`'s change doesn't alter behavior for presets without an ocean quota, so no step definitions change for it. The first and third scenarios are new. The third scenario **replaces** this feature's own "An Earthy Planet's post-subdivision vertex radii reflect the increased cartoonish amplitude" scenario's bound (`[0.7, 1.3]` → `[0.5, 1.5]`), since `apply_terrain_noise`'s existing, unchanged bound formula (`new_radius = (1.0 + signed*amplitude).max(MIN_VERTEX_RADIUS)`) directly implies the new bound from the new amplitude.
+
+### Acceptance criteria (addendum)
+
+19. `Preset::Earthy`'s `TerrainNoise.amplitude` is `0.5`; all other `TerrainNoise` fields for Earthy are unchanged from this feature's main body (unit/BDD test)
+20. For a `Planet` generated with the Earthy preset, every post-`apply_terrain_noise` vertex radius lies in `[0.5, 1.5]` (BDD test, supersedes acceptance criterion 11's `[0.7, 1.3]` bound)
+21. `vertex_color(radius, sea_level, gradient)` returns `gradient.sample(f32::NEG_INFINITY)` when `radius` is within `1e-4` of `sea_level` (when `Some`), and `gradient.sample(radius)` otherwise (unit test)
+22. For a `Planet` generated with a preset carrying an `OceanQuota` (Earthy), every vertex at the resulting mesh's minimum radius has a color equal to that preset's `ColorGradient`'s first stop's color (BDD test) — the direct regression test for "ocean renders blue, not sand-brown"
+23. For a `Planet` generated with a preset without an `OceanQuota` (Volcano, Rocky), colors remain exactly `color_gradient().sample(vertex.position.length())` for every vertex, unchanged by this addendum (BDD test, regression guard)
+24. `cargo test --workspace`, `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, and `cargo build --target wasm32-unknown-unknown -p planet-renderer` all pass
+25. No `unwrap()`/`panic!()`/`.expect()` in production code
+26. All BDD scenarios above are backed by real `cucumber` step definitions — no scenario left as markdown prose
+27. Manual, in-browser check (per `000-architecture.md`'s GPU/pixel-output exemption): a freshly generated Earthy planet visibly shows blue ocean (not sand-brown) and taller, more pronounced mountains than before this addendum
