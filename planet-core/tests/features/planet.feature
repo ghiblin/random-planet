@@ -79,10 +79,15 @@ Feature: Planet aggregate generation
     Given a Planet generated with seed 5 and the Volcano preset at max depth 4
     Then the resulting Planet's mesh has at most 6 distinct vertex radii, within floating-point tolerance
 
-  Scenario: An Earthy Planet's post-subdivision vertex radii reflect the increased cartoonish amplitude
+  Scenario: An Earthy Planet's post-subdivision vertex radii reflect the increased mountain-height amplitude
     Given a Planet generated with seed 5 and the Earthy preset at max depth 3
-    Then every vertex of the resulting Planet's mesh has a radius greater than or equal to 0.7
-    And every vertex of the resulting Planet's mesh has a radius less than or equal to 1.3
+    Then every vertex of the resulting Planet's mesh has a radius greater than or equal to 0.5
+    And every vertex of the resulting Planet's mesh has a radius less than or equal to 1.5
+    And at least one vertex of the resulting Planet's mesh has a radius greater than 1.2
+
+  Scenario: Every vertex at an Earthy Planet's minimum radius renders as its deep-water color, not an elevation-coincidental one
+    Given a Planet generated with seed 5 and the Earthy preset at max depth 4
+    Then every vertex of the resulting Planet's mesh at its minimum vertex radius has a color equal to the Earthy preset's ColorGradient's first stop's color
 
   Scenario: A Planet's subdivision mode comes from its preset, not a value independent of preset
     Given a Planet generated with seed 5 and the Earthy preset at max depth 3

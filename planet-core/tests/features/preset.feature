@@ -2,7 +2,7 @@ Feature: Selecting a Preset's parameters
 
   Scenario: The Earthy preset has its configured parameters
     When Preset::Earthy's params are requested
-    Then the PresetParams has a TerrainNoise with amplitude 0.3
+    Then the PresetParams has a TerrainNoise with amplitude 0.5
     And the PresetParams has an OceanQuota of 0.4
     And the PresetParams has subdivision mode SubdivisionMode::UniformRedSplit
 
