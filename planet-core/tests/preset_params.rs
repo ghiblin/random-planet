@@ -4,6 +4,7 @@ use planet_core::color::rgb::Rgb;
 use planet_core::presets::preset_params::PresetParams;
 use planet_core::processor::ocean_quota::OceanQuota;
 use planet_core::processor::terrain_noise::TerrainNoise;
+use planet_core::subdivision::subdivision_mode::SubdivisionMode;
 
 fn parse_color(description: &str) -> Rgb {
     if let Some(rest) = description.strip_prefix("with r ") {
@@ -64,7 +65,12 @@ fn parse_stops(description: &str) -> Vec<(f32, Rgb)> {
 
 #[derive(Debug, Default, cucumber::World)]
 pub struct PresetParamsWorld {
-    fixture: Option<(TerrainNoise, ColorGradient, Option<OceanQuota>)>,
+    fixture: Option<(
+        TerrainNoise,
+        ColorGradient,
+        Option<OceanQuota>,
+        SubdivisionMode,
+    )>,
     params: Option<PresetParams>,
     params_pair: Option<(PresetParams, PresetParams)>,
 }
@@ -74,7 +80,7 @@ fn default_terrain_noise(amplitude: f32) -> TerrainNoise {
 }
 
 #[given(
-    regex = r"^a TerrainNoise with amplitude (-?\d+(?:\.\d+)?), a ColorGradient with stops at (.+), and an OceanQuota of (-?\d+(?:\.\d+)?)$"
+    regex = r"^a TerrainNoise with amplitude (-?\d+(?:\.\d+)?), a ColorGradient with stops at (.+), an OceanQuota of (-?\d+(?:\.\d+)?), and SubdivisionMode::UniformRedSplit$"
 )]
 fn given_fixture(
     world: &mut PresetParamsWorld,
@@ -86,26 +92,33 @@ fn given_fixture(
         default_terrain_noise(amplitude),
         ColorGradient::new(parse_stops(&stops_description)).expect("valid color gradient fixture"),
         Some(OceanQuota::new(ocean_quota).expect("valid ocean quota fixture")),
+        SubdivisionMode::UniformRedSplit,
     ));
 }
 
-#[when("a PresetParams is constructed from those 3 values")]
+#[when("a PresetParams is constructed from those 4 values")]
 fn when_constructed(world: &mut PresetParamsWorld) {
-    let (terrain_noise, color_gradient, ocean_quota) =
+    let (terrain_noise, color_gradient, ocean_quota, subdivision_mode) =
         world.fixture.clone().expect("fixture not set");
     world.params = Some(PresetParams::new(
         terrain_noise,
         color_gradient,
         ocean_quota,
+        subdivision_mode,
     ));
 }
 
-#[when("two PresetParams are constructed from those same 3 values, separately")]
+#[when("two PresetParams are constructed from those same 4 values, separately")]
 fn when_constructed_twice(world: &mut PresetParamsWorld) {
-    let (terrain_noise, color_gradient, ocean_quota) =
+    let (terrain_noise, color_gradient, ocean_quota, subdivision_mode) =
         world.fixture.clone().expect("fixture not set");
-    let first = PresetParams::new(terrain_noise, color_gradient.clone(), ocean_quota);
-    let second = PresetParams::new(terrain_noise, color_gradient, ocean_quota);
+    let first = PresetParams::new(
+        terrain_noise,
+        color_gradient.clone(),
+        ocean_quota,
+        subdivision_mode,
+    );
+    let second = PresetParams::new(terrain_noise, color_gradient, ocean_quota, subdivision_mode);
     world.params_pair = Some((first, second));
 }
 
@@ -132,6 +145,12 @@ fn then_ocean_quota(world: &mut PresetParamsWorld, value: f32) {
             .value(),
         value
     );
+}
+
+#[then("the PresetParams has subdivision mode SubdivisionMode::UniformRedSplit")]
+fn then_subdivision_mode(world: &mut PresetParamsWorld) {
+    let params = world.params.as_ref().expect("PresetParams not constructed");
+    assert_eq!(params.subdivision_mode(), SubdivisionMode::UniformRedSplit);
 }
 
 #[then("the two PresetParams are identical")]

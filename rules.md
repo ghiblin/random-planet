@@ -24,7 +24,11 @@ file (naming, one-type-per-file) is enforced — not by an automated test.
   functions built entirely from `geometry`'s own types
 - `subdivision/` — `edge.rs` (`EdgeKey`, `EdgeCache`, `pub(crate)`), `steps.rs`
   (`Steps`, `StepsError`), `seed.rs` (`Seed`), `subdivision_mode.rs`
-  (`SubdivisionMode`), `subdivision_args.rs` (`SubdivisionArgs`), `subdivide.rs`
+  (`SubdivisionMode` — a seedless, preset-shape enum selecting a subdivision
+  algorithm, mirroring `TerrainNoise`'s own no-`Seed`-of-its-own convention),
+  `subdivision_args.rs` (`SubdivisionArgs` — bundles `steps`, `mode`, and `seed`
+  independently, since a strategy needs a `Seed` supplied at construction time but
+  that `Seed` is never part of `mode`'s own shape), `subdivide.rs`
   (`SubdivisionStrategy` `pub(crate)`, `subdivide`); plus a nested `strategies/`
   sub-concern (`uniform_red_split.rs`, `pub(crate)` — exposed publicly only via
   `SubdivisionMode`, never directly) for the concrete subdivision-algorithm
@@ -53,7 +57,11 @@ file (naming, one-type-per-file) is enforced — not by an automated test.
 - `color/` — elevation-to-color mapping value types, no algorithm: `rgb.rs` (`Rgb`,
   `RgbError`), `color_gradient.rs` (`ColorGradient`, `ColorGradientError`)
 - `presets/` — bundles the subdivision/color knobs into named, pre-tuned presets:
-  `preset_params.rs` (`PresetParams`), `preset.rs` (`Preset`)
+  `preset_params.rs` (`PresetParams` — `terrain_noise`, `color_gradient`, `ocean_quota`,
+  and `subdivision_mode`; the last is the preset's own choice of `SubdivisionMode`,
+  read by `Planet::subdivide` instead of hardcoded there, so different presets can
+  name different subdivision strategies without changing `planet.rs`), `preset.rs`
+  (`Preset`)
 - `planets/` — the aggregate root, split into its two lifecycle operations:
   `planet.rs` (`Planet` — including its `subdivide` method, `PlanetError`,
   `GenerationProgress`), `planet_builder.rs` (`PlanetBuilder` — creation only,

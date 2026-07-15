@@ -1,5 +1,6 @@
 use std::fmt;
 
+use crate::color::color_gradient::ColorGradient;
 use crate::color::rgb::Rgb;
 use crate::geometry::mesh::{Mesh, MeshError};
 use crate::presets::preset::Preset;
@@ -13,7 +14,6 @@ use crate::subdivision::seed::Seed;
 use crate::subdivision::steps::Steps;
 use crate::subdivision::subdivide::subdivide;
 use crate::subdivision::subdivision_args::SubdivisionArgs;
-use crate::subdivision::subdivision_mode::SubdivisionMode;
 
 use super::planet_builder::PlanetBuilder;
 
@@ -49,6 +49,16 @@ impl From<MeshError> for PlanetError {
     }
 }
 
+fn vertex_color(radius: f32, sea_level: Option<f32>, gradient: &ColorGradient) -> Rgb {
+    const SEA_LEVEL_TOLERANCE: f32 = 1e-4;
+    match sea_level {
+        Some(sea_level) if (radius - sea_level).abs() <= SEA_LEVEL_TOLERANCE => {
+            gradient.sample(f32::NEG_INFINITY)
+        }
+        _ => gradient.sample(radius),
+    }
+}
+
 fn postprocessing_pipeline(params: &PresetParams, seed: Seed) -> MeshProcessor {
     let terrain_noise = params.terrain_noise();
     let mut pipeline = compose_mesh(
@@ -81,15 +91,24 @@ impl Planet {
         }
         let args = SubdivisionArgs::new(
             Some(max_depth),
-            Some(SubdivisionMode::UniformRedSplit { seed: self.seed }),
+            Some(params.subdivision_mode()),
+            Some(self.seed),
             on_progress,
         );
         let mesh = subdivide(&self.mesh, args)?;
         let mesh = postprocessing_pipeline(&params, self.seed)(&mesh)?;
+        let sea_level = params.ocean_quota().map(|_| {
+            mesh.vertices()
+                .iter()
+                .map(|vertex| vertex.position.length())
+                .fold(f32::INFINITY, f32::min)
+        });
         let colors = mesh
             .vertices()
             .iter()
-            .map(|vertex| params.color_gradient().sample(vertex.position.length()))
+            .map(|vertex| {
+                vertex_color(vertex.position.length(), sea_level, params.color_gradient())
+            })
             .collect();
         Ok(Planet {
             mesh,
@@ -118,5 +137,47 @@ impl Planet {
 
     pub fn max_depth(&self) -> Option<Steps> {
         self.max_depth
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::color::rgb::Rgb;
+
+    fn gradient() -> ColorGradient {
+        ColorGradient::new(vec![
+            (0.7, Rgb::new(0.0, 0.0, 1.0).unwrap()),
+            (1.3, Rgb::new(1.0, 1.0, 1.0).unwrap()),
+        ])
+        .unwrap()
+    }
+
+    #[test]
+    fn samples_first_stop_when_at_sea_level() {
+        let gradient = gradient();
+        let color = vertex_color(0.997, Some(0.997), &gradient);
+        assert_eq!(color, gradient.sample(f32::NEG_INFINITY));
+    }
+
+    #[test]
+    fn samples_first_stop_when_within_tolerance_of_sea_level() {
+        let gradient = gradient();
+        let color = vertex_color(0.99705, Some(0.9970), &gradient);
+        assert_eq!(color, gradient.sample(f32::NEG_INFINITY));
+    }
+
+    #[test]
+    fn samples_own_radius_when_outside_tolerance_of_sea_level() {
+        let gradient = gradient();
+        let color = vertex_color(1.1, Some(0.997), &gradient);
+        assert_eq!(color, gradient.sample(1.1));
+    }
+
+    #[test]
+    fn samples_own_radius_when_no_sea_level() {
+        let gradient = gradient();
+        let color = vertex_color(0.997, None, &gradient);
+        assert_eq!(color, gradient.sample(0.997));
     }
 }

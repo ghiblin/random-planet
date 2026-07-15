@@ -117,6 +117,52 @@ fn then_colors_match_gradient(world: &mut PlanetWorld, preset_name: String) {
 }
 
 #[then(
+    "every vertex of the resulting Planet's mesh at its minimum vertex radius has a color equal to the Earthy preset's ColorGradient's first stop's color"
+)]
+fn then_min_radius_color_is_first_stop(world: &mut PlanetWorld) {
+    let planet = world
+        .first_planet
+        .as_ref()
+        .expect("first Planet not generated");
+    let gradient = Preset::Earthy.params().color_gradient().clone();
+    let expected = gradient.sample(f32::NEG_INFINITY);
+    let min_radius = planet
+        .mesh()
+        .vertices()
+        .iter()
+        .map(|vertex| vertex.position.length())
+        .fold(f32::INFINITY, f32::min);
+    for (vertex, color) in planet.mesh().vertices().iter().zip(planet.colors()) {
+        if (vertex.position.length() - min_radius).abs() < 1e-4 {
+            assert_eq!(
+                *color, expected,
+                "vertex at minimum radius {min_radius} has the wrong color"
+            );
+        }
+    }
+}
+
+#[then(
+    regex = r"^at least one vertex of the resulting Planet's mesh has a radius greater than (\d+(?:\.\d+)?)$"
+)]
+fn then_at_least_one_radius_above(world: &mut PlanetWorld, bound: f32) {
+    let planet = world
+        .first_planet
+        .as_ref()
+        .expect("first Planet not generated");
+    let max_radius = planet
+        .mesh()
+        .vertices()
+        .iter()
+        .map(|vertex| vertex.position.length())
+        .fold(f32::NEG_INFINITY, f32::max);
+    assert!(
+        max_radius > bound,
+        "expected at least one vertex radius above {bound}, max was {max_radius}"
+    );
+}
+
+#[then(
     regex = r"^every vertex of the resulting Planet's mesh has a radius less than or equal to (\d+(?:\.\d+)?)$"
 )]
 fn then_radius_upper_bound(world: &mut PlanetWorld, bound: f32) {
@@ -186,6 +232,20 @@ fn then_exact_triangle_count(world: &mut PlanetWorld, count: usize) {
         .as_ref()
         .expect("first Planet not generated");
     assert_eq!(planet.mesh().triangles().len(), count);
+}
+
+#[then(regex = r"^both resulting Planets' meshes have exactly (\d+) triangles$")]
+fn then_both_exact_triangle_count(world: &mut PlanetWorld, count: usize) {
+    let first = world
+        .first_planet
+        .as_ref()
+        .expect("first Planet not generated");
+    let second = world
+        .second_planet
+        .as_ref()
+        .expect("second Planet not generated");
+    assert_eq!(first.mesh().triangles().len(), count);
+    assert_eq!(second.mesh().triangles().len(), count);
 }
 
 #[then(regex = r"^the resulting Planet's mesh has (\d+) vertices$")]

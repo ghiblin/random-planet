@@ -2,6 +2,7 @@ use crate::color::color_gradient::ColorGradient;
 use crate::color::rgb::Rgb;
 use crate::processor::ocean_quota::OceanQuota;
 use crate::processor::terrain_noise::TerrainNoise;
+use crate::subdivision::subdivision_mode::SubdivisionMode;
 
 use super::preset_params::PresetParams;
 
@@ -40,14 +41,14 @@ impl Preset {
                     octaves: 4,
                     persistence: 0.5,
                     lacunarity: 2.0,
-                    amplitude: 0.12,
+                    amplitude: 0.60,
                     redistribution_exponent: 1.4,
                     terrace_levels: None,
                 },
                 ColorGradient {
                     stops: vec![
                         (
-                            0.85,
+                            0.70,
                             Rgb {
                                 r: 0.05,
                                 g: 0.15,
@@ -55,7 +56,7 @@ impl Preset {
                             },
                         ), // deep water
                         (
-                            0.95,
+                            0.90,
                             Rgb {
                                 r: 0.20,
                                 g: 0.50,
@@ -71,7 +72,7 @@ impl Preset {
                             },
                         ), // sand
                         (
-                            1.05,
+                            1.10,
                             Rgb {
                                 r: 0.25,
                                 g: 0.55,
@@ -79,7 +80,7 @@ impl Preset {
                             },
                         ), // grassland
                         (
-                            1.10,
+                            1.20,
                             Rgb {
                                 r: 0.45,
                                 g: 0.35,
@@ -87,7 +88,7 @@ impl Preset {
                             },
                         ), // hills
                         (
-                            1.15,
+                            1.30,
                             Rgb {
                                 r: 0.95,
                                 g: 0.95,
@@ -97,6 +98,7 @@ impl Preset {
                     ],
                 },
                 Some(OceanQuota(0.4)),
+                SubdivisionMode::UniformRedSplit,
             ),
             Preset::Volcano => PresetParams::new(
                 TerrainNoise {
@@ -153,6 +155,7 @@ impl Preset {
                     ],
                 },
                 None,
+                SubdivisionMode::UniformRedSplit,
             ),
             Preset::Rocky => PresetParams::new(
                 TerrainNoise {
@@ -209,6 +212,7 @@ impl Preset {
                     ],
                 },
                 None,
+                SubdivisionMode::UniformRedSplit,
             ),
         }
     }
