@@ -54,9 +54,8 @@ fn given_subdivided_icosahedron(world: &mut ApplyTerrainNoiseWorld, steps: usize
     world.icosahedron_mesh = Some(base.clone());
     let args = SubdivisionArgs::new(
         Some(planet_core::subdivision::steps::Steps::new(steps).expect("valid steps fixture")),
-        Some(SubdivisionMode::UniformRedSplit {
-            seed: Seed::from(seed),
-        }),
+        Some(SubdivisionMode::UniformRedSplit),
+        Some(Seed::from(seed)),
         None,
     );
     world.subdivided_mesh = Some(subdivide(&base, args).expect("subdivide failed"));

@@ -48,9 +48,8 @@ impl SubdivideWorld {
 fn subdivided(source: &Mesh, steps: usize, seed: u64) -> Mesh {
     let args = SubdivisionArgs::new(
         Some(Steps::new(steps).expect("Steps::new failed")),
-        Some(SubdivisionMode::UniformRedSplit {
-            seed: Seed::from(seed),
-        }),
+        Some(SubdivisionMode::UniformRedSplit),
+        Some(Seed::from(seed)),
         None,
     );
     subdivide(source, args).expect("subdivide() failed")
@@ -104,7 +103,7 @@ fn when_subdivided(world: &mut SubdivideWorld, steps: usize, seed: u64) {
 #[when("the mesh is subdivided with default SubdivisionArgs")]
 fn when_subdivided_default(world: &mut SubdivideWorld) {
     let source = world.source_mesh();
-    let args = SubdivisionArgs::new(None, None, None);
+    let args = SubdivisionArgs::new(None, None, None, None);
     world.result = Some(subdivide(&source, args).expect("subdivide() failed"));
 }
 
@@ -141,9 +140,8 @@ fn when_subdivided_with_callback(world: &mut SubdivideWorld, steps: usize, seed:
     world.callback_invocations = Some(invocations);
     let args = SubdivisionArgs::new(
         Some(Steps::new(steps).expect("Steps::new failed")),
-        Some(SubdivisionMode::UniformRedSplit {
-            seed: Seed::from(seed),
-        }),
+        Some(SubdivisionMode::UniformRedSplit),
+        Some(Seed::from(seed)),
         Some(update_cb),
     );
     world.result = Some(subdivide(&source, args).expect("subdivide() failed"));

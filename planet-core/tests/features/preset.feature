@@ -2,23 +2,26 @@ Feature: Selecting a Preset's parameters
 
   Scenario: The Earthy preset has its configured parameters
     When Preset::Earthy's params are requested
-    Then the PresetParams has a TerrainNoise with amplitude 0.12
+    Then the PresetParams has a TerrainNoise with amplitude 0.6
     And the PresetParams has an OceanQuota of 0.4
+    And the PresetParams has subdivision mode SubdivisionMode::UniformRedSplit
 
   Scenario: The Volcano preset has its configured parameters
     When Preset::Volcano's params are requested
     Then the PresetParams has a TerrainNoise with amplitude 0.3
     And the PresetParams has no OceanQuota
+    And the PresetParams has subdivision mode SubdivisionMode::UniformRedSplit
 
   Scenario: The Rocky preset has its configured parameters
     When Preset::Rocky's params are requested
     Then the PresetParams has a TerrainNoise with amplitude 0.22
     And the PresetParams has no OceanQuota
+    And the PresetParams has subdivision mode SubdivisionMode::UniformRedSplit
 
   Scenario: Earthy's color gradient samples its own lowest and highest configured elevations to its first and last stops' colors
     When Preset::Earthy's params are requested
-    Then sampling its color gradient at elevation 0.85 returns Rgb r 0.05, g 0.15, b 0.45
-    And sampling its color gradient at elevation 1.15 returns Rgb r 0.95, g 0.95, b 0.95
+    Then sampling its color gradient at elevation 0.7 returns Rgb r 0.05, g 0.15, b 0.45
+    And sampling its color gradient at elevation 1.3 returns Rgb r 0.95, g 0.95, b 0.95
 
   Scenario: Volcano's color gradient samples its own lowest and highest configured elevations to its first and last stops' colors
     When Preset::Volcano's params are requested
