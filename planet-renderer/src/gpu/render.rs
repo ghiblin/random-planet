@@ -25,7 +25,8 @@ pub struct Renderer {
     config: wgpu::SurfaceConfiguration,
     pipeline: wgpu::RenderPipeline,
     wireframe_pipeline: wgpu::RenderPipeline,
-    vertex_buffer: wgpu::Buffer,
+    vertex_buffer_smooth: wgpu::Buffer,
+    vertex_buffer_flat: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     index_count: u32,
     line_index_buffer: wgpu::Buffer,
@@ -65,15 +66,21 @@ impl Renderer {
         let surface_format = config.format;
         surface.configure(&device, &config);
 
-        let vertex_bytes = pack_vertex_buffer(&mesh_render_vertices(mesh, colors));
+        let vertex_bytes_smooth = pack_vertex_buffer(&mesh_render_vertices(mesh, colors, false));
+        let vertex_bytes_flat = pack_vertex_buffer(&mesh_render_vertices(mesh, colors, true));
         let index_list = mesh_render_indices(mesh);
         let index_bytes = pack_index_buffer(&index_list);
         let line_index_list = mesh_render_line_indices(mesh);
         let line_index_bytes = pack_index_buffer(&line_index_list);
 
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("cube vertex buffer"),
-            contents: &vertex_bytes,
+        let vertex_buffer_smooth = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("smooth-shading vertex buffer"),
+            contents: &vertex_bytes_smooth,
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+        let vertex_buffer_flat = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("flat-shading vertex buffer"),
+            contents: &vertex_bytes_flat,
             usage: wgpu::BufferUsages::VERTEX,
         });
         let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -232,7 +239,8 @@ impl Renderer {
             config,
             pipeline,
             wireframe_pipeline,
-            vertex_buffer,
+            vertex_buffer_smooth,
+            vertex_buffer_flat,
             index_buffer,
             index_count: index_list.len() as u32,
             line_index_buffer,
@@ -243,22 +251,31 @@ impl Renderer {
         })
     }
 
-    /// Rebuilds the mesh-derived GPU buffers (vertex, triangle-list index, line-list index)
-    /// to match a newly given `Mesh` — used when subdivision advances by one step.
+    /// Rebuilds the mesh-derived GPU buffers (smooth/flat vertex, triangle-list index,
+    /// line-list index) to match a newly given `Mesh` — used when subdivision advances
+    /// by one step.
     pub fn set_mesh(&mut self, mesh: &Mesh, colors: &[Rgb]) {
-        let vertex_bytes = pack_vertex_buffer(&mesh_render_vertices(mesh, colors));
+        let vertex_bytes_smooth = pack_vertex_buffer(&mesh_render_vertices(mesh, colors, false));
+        let vertex_bytes_flat = pack_vertex_buffer(&mesh_render_vertices(mesh, colors, true));
         let index_list = mesh_render_indices(mesh);
         let index_bytes = pack_index_buffer(&index_list);
         let line_index_list = mesh_render_line_indices(mesh);
         let line_index_bytes = pack_index_buffer(&line_index_list);
 
-        self.vertex_buffer = self
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("cube vertex buffer"),
-                contents: &vertex_bytes,
-                usage: wgpu::BufferUsages::VERTEX,
-            });
+        self.vertex_buffer_smooth =
+            self.device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("smooth-shading vertex buffer"),
+                    contents: &vertex_bytes_smooth,
+                    usage: wgpu::BufferUsages::VERTEX,
+                });
+        self.vertex_buffer_flat =
+            self.device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("flat-shading vertex buffer"),
+                    contents: &vertex_bytes_flat,
+                    usage: wgpu::BufferUsages::VERTEX,
+                });
         self.index_buffer = self
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -289,7 +306,7 @@ impl Renderer {
 
     /// Renders one frame. Silently skips the frame on a transient surface condition
     /// (occlusion, timeout, or an outdated/lost surface awaiting the next resize).
-    pub fn render(&self, camera: &Camera, wireframe: bool) {
+    pub fn render(&self, camera: &Camera, wireframe: bool, flat_shading: bool) {
         let output = match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(texture)
             | wgpu::CurrentSurfaceTexture::Suboptimal(texture) => texture,
@@ -351,6 +368,11 @@ impl Renderer {
             } else {
                 (&self.pipeline, &self.index_buffer, self.index_count)
             };
+            let vertex_buffer = if flat_shading {
+                &self.vertex_buffer_flat
+            } else {
+                &self.vertex_buffer_smooth
+            };
 
             // Nothing to draw yet (e.g. before any Planet has been generated, when
             // the mesh is empty) — an empty vertex/index buffer can't be sliced, so
@@ -359,7 +381,7 @@ impl Renderer {
             if index_count > 0 {
                 pass.set_pipeline(pipeline);
                 pass.set_bind_group(0, &self.uniform_bind_group, &[]);
-                pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+                pass.set_vertex_buffer(0, vertex_buffer.slice(..));
                 pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
                 pass.draw_indexed(0..index_count, 0, 0..1);
             }

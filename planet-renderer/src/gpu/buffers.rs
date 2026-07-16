@@ -8,17 +8,23 @@ pub struct Vertex {
     pub color: [f32; 3],
 }
 
-pub fn mesh_render_vertices(mesh: &Mesh, colors: &[Rgb]) -> Vec<Vertex> {
+pub fn mesh_render_vertices(mesh: &Mesh, colors: &[Rgb], flat_shading: bool) -> Vec<Vertex> {
     mesh.faces()
         .iter()
         .flat_map(|face| {
-            face.edges.iter().map(|&edge_index| {
+            let flat_normal = [face.normal.x, face.normal.y, face.normal.z];
+            face.edges.iter().map(move |&edge_index| {
                 let source_index = mesh.edges()[edge_index].start;
                 let vertex = &mesh.vertices()[source_index];
                 let color = colors[source_index];
+                let normal = if flat_shading {
+                    flat_normal
+                } else {
+                    [vertex.normal.x, vertex.normal.y, vertex.normal.z]
+                };
                 Vertex {
                     position: [vertex.position.x, vertex.position.y, vertex.position.z],
-                    normal: [vertex.normal.x, vertex.normal.y, vertex.normal.z],
+                    normal,
                     color: [color.r(), color.g(), color.b()],
                 }
             })

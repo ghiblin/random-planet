@@ -43,6 +43,7 @@ pub struct App {
     last_cursor: Option<PhysicalPosition<f64>>,
     frames: Frames,
     wireframe: bool,
+    flat_shading: bool,
 }
 
 impl Default for App {
@@ -55,6 +56,7 @@ impl Default for App {
             last_cursor: None,
             frames: Rc::new(RefCell::new((Vec::new(), 0))),
             wireframe: false,
+            flat_shading: false,
         }
     }
 }
@@ -490,6 +492,9 @@ impl ApplicationHandler for App {
                         PhysicalKey::Code(KeyCode::KeyW) => {
                             self.wireframe = !self.wireframe;
                         }
+                        PhysicalKey::Code(KeyCode::KeyF) => {
+                            self.flat_shading = !self.flat_shading;
+                        }
                         _ => {}
                     }
                 }
@@ -518,7 +523,7 @@ impl ApplicationHandler for App {
                 match self.renderer.try_borrow() {
                     Ok(renderer_ref) => {
                         if let Some(renderer) = renderer_ref.as_ref() {
-                            renderer.render(&self.camera, self.wireframe);
+                            renderer.render(&self.camera, self.wireframe, self.flat_shading);
                         }
                     }
                     Err(_) => log_error("redraw: renderer already borrowed while rendering"),
