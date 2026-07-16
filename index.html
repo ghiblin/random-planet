@@ -24,8 +24,6 @@
       }
 
       #controls,
-      #change-settings-button,
-      #toggle-buttons,
       #error-modal {
         position: fixed;
       }
@@ -91,21 +89,50 @@
         color: #b0b0b8;
       }
 
-      #change-settings-button {
-        top: 1.5rem;
-        left: 1.5rem;
-      }
-
-      #toggle-buttons {
-        top: 1.5rem;
-        left: 11rem;
+      .switch {
         display: flex;
-        flex-direction: row;
-        gap: 0.5rem;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        cursor: pointer;
       }
 
-      .toggle-button[aria-pressed="true"] {
-        background: rgba(255, 255, 255, 0.08);
+      .switch input[type="checkbox"] {
+        position: absolute;
+        opacity: 0;
+        width: 1px;
+        height: 1px;
+        pointer-events: none;
+      }
+
+      .switch-track {
+        position: relative;
+        width: 2.5rem;
+        height: 1.4rem;
+        border-radius: 999px;
+        background: #3a3a44;
+        flex-shrink: 0;
+        transition: background 0.15s ease;
+      }
+
+      .switch-track::before {
+        content: "";
+        position: absolute;
+        top: 0.15rem;
+        left: 0.15rem;
+        width: 1.1rem;
+        height: 1.1rem;
+        border-radius: 50%;
+        background: #e6e6ea;
+        transition: transform 0.15s ease;
+      }
+
+      .switch input:checked + .switch-track {
+        background: #5b8def;
+      }
+
+      .switch input:checked + .switch-track::before {
+        transform: translateX(1.1rem);
       }
     </style>
   </head>
@@ -118,28 +145,18 @@
       <label for="depth-slider">Depth (<span id="depth-value"></span>)</label>
       <input id="depth-slider" type="range" step="1" />
 
+      <label class="switch" for="wireframe-toggle">
+        <span>Wireframe</span>
+        <input id="wireframe-toggle" type="checkbox" />
+        <span class="switch-track"></span>
+      </label>
+      <label class="switch" for="flat-shading-toggle">
+        <span>Flat shading</span>
+        <input id="flat-shading-toggle" type="checkbox" />
+        <span class="switch-track"></span>
+      </label>
+
       <button id="start-button" type="button" disabled>Start</button>
-    </div>
-
-    <button id="change-settings-button" type="button" hidden>Change settings</button>
-
-    <div id="toggle-buttons" hidden>
-      <button
-        id="wireframe-toggle-button"
-        type="button"
-        class="toggle-button"
-        aria-pressed="false"
-      >
-        Wireframe
-      </button>
-      <button
-        id="flat-shading-toggle-button"
-        type="button"
-        class="toggle-button"
-        aria-pressed="false"
-      >
-        Flat shading
-      </button>
     </div>
 
     <dialog id="error-modal">

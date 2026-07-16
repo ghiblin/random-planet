@@ -245,3 +245,64 @@ BDD coverage today (per `constitution.md`'s `wasm-bindgen`/DOM-wiring carve-out)
     mode and visibly changes its own pressed/active appearance; pressing the
     corresponding key does the same and is reflected on the button; `Change settings`
     hides both buttons again alongside the existing `change-settings-button`.
+
+## Addendum 2: switch controls under the depth slider, settings panel always visible
+
+Addendum 1's floating button row (shown/hidden together with `#change-settings-button`)
+is replaced: the two toggles move permanently into `#controls`, directly under the
+depth-slider row, rendered as checkbox-based switches instead of `aria-pressed` buttons.
+
+**This supersedes part of `015-control-panel.md`'s design**, not just this spec's own
+addendum 1: `015` established that "the controls are hidden the moment Start is clicked;
+a small Change settings button appears in their place" — specifically so the depth
+slider/preset picker get out of the way while viewing a generated planet, with the
+canvas "visible in the background." That hide/show dance is dropped. `#controls` (and
+therefore the depth slider and these two new switches) stays visible and interactive at
+all times, including while viewing an already-generated planet — because the switches
+need to be reachable exactly then, and moving them under the depth slider only to have
+them hidden alongside it during viewing would make them unreachable when they're most
+useful. `#change-settings-button` and `#toggle-buttons` (addendum 1's floating row) are
+both removed entirely — with `#controls` never hidden, there is nothing left for
+"Change settings" to un-hide.
+
+**HTML** (`index.html`): the depth-slider row gains two sibling `<label class="switch">`
+rows immediately after it (before `#start-button`), each wrapping a plain
+`<input type="checkbox">` (visually hidden, same established pattern as
+`.preset-option input[type="radio"]`) plus a `<span class="switch-track">` knob element,
+styled via a `.switch input:checked + .switch-track` CSS rule (translate the knob,
+recolor the track) — no JS-driven class toggling needed for the visual state, the browser's
+own `:checked` pseudo-class drives it. `#change-settings-button`, `#toggle-buttons`, and
+the now-unused `.toggle-button[aria-pressed="true"]` rule are deleted from both the body
+and the `<style>` block.
+
+**Function/API contracts (revision — replaces addendum 1's button-based wiring):**
+```rust
+// planet-renderer/src/app.rs
+fn sync_checkbox(document: &Document, id: &str, checked: bool);
+// replaces `set_pressed`: looks up `id` as an HtmlInputElement and sets `.set_checked`.
+// Used by the keyboard-shortcut arms (KeyW/KeyF) to keep each switch visually in sync
+// after a keyboard toggle, exactly as `set_pressed` did for the old buttons.
+```
+- `wire_controls`'s two click-handler blocks become `"change"`-event handlers on
+  `#wireframe-toggle`/`#flat-shading-toggle`: each reads the checkbox's own
+  `.checked()` directly (the browser has already flipped it by the time `change` fires)
+  and *assigns* that value into the shared `Rc<RefCell<bool>>` — no manual negation
+  needed, unlike the button click handler it replaces.
+- The `start-button` click handler drops its `controls.set_attribute("hidden", "")` and
+  `change-settings-button`/`toggle-buttons` `remove_attribute("hidden")` calls — `#controls`
+  is never hidden, so there is nothing to show/hide around a Start click anymore.
+- The entire `change-settings-button` click-handler block in `wire_controls` is deleted.
+
+**BDD scenarios**: none added, same rationale as addendum 1 — pure DOM wiring.
+
+**Acceptance criteria (revise 9, 11, 13; 10 and 12 carry over unchanged):**
+9. `index.html`'s `#wireframe-toggle`/`#flat-shading-toggle` checkboxes live inside
+   `#controls`, immediately after the depth-slider row; `#controls` is never hidden.
+   `#change-settings-button` and `#toggle-buttons` no longer exist in the markup.
+11. Pressing `W`/`F` also updates the matching checkbox's `checked` state (not just
+    internal flag state) via `sync_checkbox` — keyboard and switch stay visually
+    synchronized regardless of which input path was used.
+13. Manual, in-browser: the depth slider and both switches are visible and usable both
+    before and after `Start`, including while viewing an already-generated planet;
+    toggling a switch or its matching key changes the rendered planet's shading/wireframe
+    immediately and keeps the other input path's visual state in sync.
