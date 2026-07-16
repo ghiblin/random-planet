@@ -42,8 +42,8 @@ pub struct App {
     dragging: bool,
     last_cursor: Option<PhysicalPosition<f64>>,
     frames: Frames,
-    wireframe: bool,
-    flat_shading: bool,
+    wireframe: Rc<RefCell<bool>>,
+    flat_shading: Rc<RefCell<bool>>,
 }
 
 impl Default for App {
@@ -55,8 +55,8 @@ impl Default for App {
             dragging: false,
             last_cursor: None,
             frames: Rc::new(RefCell::new((Vec::new(), 0))),
-            wireframe: false,
-            flat_shading: false,
+            wireframe: Rc::new(RefCell::new(false)),
+            flat_shading: Rc::new(RefCell::new(false)),
         }
     }
 }
@@ -89,6 +89,15 @@ fn get_typed_element<T: JsCast>(document: &Document, id: &str) -> Option<T> {
             log_error(&format!("element #{id} is not the expected type"));
             None
         }
+    }
+}
+
+/// Syncs a toggle button's accessible/stylable pressed state to `pressed` — the single
+/// place both a button's own click handler and the matching keyboard shortcut update
+/// the on-screen state, so the two input paths never drift out of sync.
+fn set_pressed(document: &Document, id: &str, pressed: bool) {
+    if let Some(element) = get_element(document, id) {
+        let _ = element.set_attribute("aria-pressed", if pressed { "true" } else { "false" });
     }
 }
 
@@ -348,6 +357,9 @@ impl App {
                 if let Some(change_settings) = get_element(document, "change-settings-button") {
                     let _ = change_settings.remove_attribute("hidden");
                 }
+                if let Some(toggle_buttons) = get_element(document, "toggle-buttons") {
+                    let _ = toggle_buttons.remove_attribute("hidden");
+                }
             });
             let _ = start_button
                 .add_event_listener_with_callback("click", closure.as_ref().unchecked_ref());
@@ -365,8 +377,47 @@ impl App {
                 {
                     let _ = change_settings.set_attribute("hidden", "");
                 }
+                if let Some(toggle_buttons) = get_element(&document_for_change, "toggle-buttons") {
+                    let _ = toggle_buttons.set_attribute("hidden", "");
+                }
             });
             let _ = change_settings
+                .add_event_listener_with_callback("click", closure.as_ref().unchecked_ref());
+            closure.forget();
+        }
+
+        if let Some(wireframe_button) = get_element(&document, "wireframe-toggle-button") {
+            let document_for_wireframe = document.clone();
+            let wireframe = self.wireframe.clone();
+            let closure = Closure::<dyn FnMut(Event)>::new(move |_event: Event| {
+                let pressed = {
+                    let mut flag = wireframe.borrow_mut();
+                    *flag = !*flag;
+                    *flag
+                };
+                set_pressed(&document_for_wireframe, "wireframe-toggle-button", pressed);
+            });
+            let _ = wireframe_button
+                .add_event_listener_with_callback("click", closure.as_ref().unchecked_ref());
+            closure.forget();
+        }
+
+        if let Some(flat_shading_button) = get_element(&document, "flat-shading-toggle-button") {
+            let document_for_flat_shading = document.clone();
+            let flat_shading = self.flat_shading.clone();
+            let closure = Closure::<dyn FnMut(Event)>::new(move |_event: Event| {
+                let pressed = {
+                    let mut flag = flat_shading.borrow_mut();
+                    *flag = !*flag;
+                    *flag
+                };
+                set_pressed(
+                    &document_for_flat_shading,
+                    "flat-shading-toggle-button",
+                    pressed,
+                );
+            });
+            let _ = flat_shading_button
                 .add_event_listener_with_callback("click", closure.as_ref().unchecked_ref());
             closure.forget();
         }
@@ -488,14 +539,23 @@ impl ApplicationHandler for App {
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 if event.state == ElementState::Pressed && !event.repeat {
-                    match event.physical_key {
+                    let toggled = match event.physical_key {
                         PhysicalKey::Code(KeyCode::KeyW) => {
-                            self.wireframe = !self.wireframe;
+                            let mut flag = self.wireframe.borrow_mut();
+                            *flag = !*flag;
+                            Some(("wireframe-toggle-button", *flag))
                         }
                         PhysicalKey::Code(KeyCode::KeyF) => {
-                            self.flat_shading = !self.flat_shading;
+                            let mut flag = self.flat_shading.borrow_mut();
+                            *flag = !*flag;
+                            Some(("flat-shading-toggle-button", *flag))
                         }
-                        _ => {}
+                        _ => None,
+                    };
+                    if let Some((id, pressed)) = toggled {
+                        if let Some(document) = document() {
+                            set_pressed(&document, id, pressed);
+                        }
                     }
                 }
             }
@@ -523,7 +583,11 @@ impl ApplicationHandler for App {
                 match self.renderer.try_borrow() {
                     Ok(renderer_ref) => {
                         if let Some(renderer) = renderer_ref.as_ref() {
-                            renderer.render(&self.camera, self.wireframe, self.flat_shading);
+                            renderer.render(
+                                &self.camera,
+                                *self.wireframe.borrow(),
+                                *self.flat_shading.borrow(),
+                            );
                         }
                     }
                     Err(_) => log_error("redraw: renderer already borrowed while rendering"),

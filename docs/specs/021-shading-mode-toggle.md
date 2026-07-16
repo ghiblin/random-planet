@@ -168,3 +168,80 @@ scenario text change needed beyond adding the parameter to their `When` step's f
    generated planet between faceted (flat) and continuous (smooth) shading, independent
    of the `W` wireframe toggle and independent of which growth-animation frame is
    currently displayed.
+
+## Addendum: on-screen toggle buttons
+
+The keyboard-only wiring above shipped first; this addendum adds a discoverable UI path
+for both toggles (`wireframe` and `flat_shading`), since a keyboard shortcut with no
+visible control is easy for a user to never find. Keyboard shortcuts (`W`/`F`) are kept,
+unchanged — buttons are an additional, synchronized input path, not a replacement.
+
+**HTML** (`index.html`): two new buttons, `#wireframe-toggle-button` and
+`#flat-shading-toggle-button`, placed alongside `#change-settings-button` — shown/hidden
+together with it (hidden until the first `Start` click, since toggling shading on an
+empty pre-generation mesh has no visible effect; re-hidden on `Change settings`, matching
+`#controls`'/`#change-settings-button`'s existing show/hide pairing). Each carries
+`type="button"`, `class="toggle-button"`, and `aria-pressed="false"` initially — the
+pressed state is the accessible, stylable signal of "is this mode currently on",
+mirroring `.preset-option:has(input:checked)`'s existing highlight-when-active pattern
+via a new `.toggle-button[aria-pressed="true"]` CSS rule.
+
+**Domain model change**: `App.wireframe`/`App.flat_shading` change from plain `bool` to
+`Rc<RefCell<bool>>` — mirroring `App.frames`'/`App.renderer`'s existing shared-mutable-
+state pattern — because a button click closure (registered once, in `wire_controls`,
+captured by a `'static` `Closure`) and the winit keyboard handler (`&mut self` on `App`)
+now both need to flip the *same* flag and keep the on-screen button in sync. A plain
+`bool` field can't be mutated from both a captured DOM closure and the event-loop method
+at once; `Rc<RefCell<bool>>` is this file's existing, established answer to exactly that
+problem.
+
+**Function/API contracts (additions):**
+```rust
+// planet-renderer/src/app.rs
+pub struct App {
+    // ...
+    wireframe: Rc<RefCell<bool>>,      // was bool
+    flat_shading: Rc<RefCell<bool>>,   // was bool
+}
+// Default: both Rc::new(RefCell::new(false)), same default value as before.
+
+// new private helper, alongside get_element/get_typed_element/create_element:
+fn set_pressed(document: &Document, id: &str, pressed: bool);
+// sets `aria-pressed` to "true"/"false" on the element `id` — the single place both
+// the keyboard handler and the two button click handlers sync visible toggle state.
+```
+- `WindowEvent::KeyboardInput`'s `KeyW`/`KeyF` arms: flip the `Rc<RefCell<bool>>` in
+  place (`let mut flag = self.wireframe.borrow_mut(); *flag = !*flag;`, same for
+  `flat_shading`), then — since this event fires on the native winit side, not from a
+  DOM closure — look up `document()` and call `set_pressed` on the matching button id so
+  a keyboard toggle keeps the button's visual state truthful too.
+- `WindowEvent::RedrawRequested`'s `renderer.render(...)` call reads
+  `*self.wireframe.borrow()` / `*self.flat_shading.borrow()` instead of the old plain
+  field reads — signature of `Renderer::render` itself is unchanged from the base spec.
+- `wire_controls` gains two new click-handler blocks (same shape as the existing
+  `change-settings-button` block): each clones its own `Rc<RefCell<bool>>` plus
+  `document`, flips the flag on click, and calls `set_pressed` on its own button id.
+- The `start-button` click handler's existing `controls`/`change-settings-button`
+  show/hide pair gains the two new button ids to the same `remove_attribute("hidden")`
+  call; the `change-settings-button` click handler's existing pair gains the same two
+  ids to its `set_attribute("hidden", "")` call.
+
+**BDD scenarios**: none added. This addendum is pure DOM/GPU wiring — button click
+handlers, keyboard-to-button state sync, `Rc<RefCell<bool>>` plumbing — with no new pure,
+host-testable logic, the same class of code as the pre-existing `start-button`/
+`change-settings-button`/`preset-radio` click handlers in this file, none of which carry
+BDD coverage today (per `constitution.md`'s `wasm-bindgen`/DOM-wiring carve-out).
+
+**Acceptance criteria (additions):**
+9. `index.html` gains `#wireframe-toggle-button` and `#flat-shading-toggle-button`,
+   hidden by default, shown/hidden in lockstep with `#change-settings-button`.
+10. Clicking either button flips its corresponding flag exactly like its keyboard
+    shortcut does, and updates its own `aria-pressed` attribute to match the new state.
+11. Pressing `W`/`F` also updates the matching button's `aria-pressed` attribute (not
+    just internal state) — keyboard and button stay visually synchronized regardless of
+    which input path was used.
+12. Build gate passes (same command as criterion 7).
+13. Manual, in-browser: after `Start`, both buttons are visible; clicking one toggles its
+    mode and visibly changes its own pressed/active appearance; pressing the
+    corresponding key does the same and is reflected on the button; `Change settings`
+    hides both buttons again alongside the existing `change-settings-button`.

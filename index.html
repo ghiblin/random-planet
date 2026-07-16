@@ -25,6 +25,7 @@
 
       #controls,
       #change-settings-button,
+      #toggle-buttons,
       #error-modal {
         position: fixed;
       }
@@ -94,6 +95,18 @@
         top: 1.5rem;
         left: 1.5rem;
       }
+
+      #toggle-buttons {
+        top: 1.5rem;
+        left: 11rem;
+        display: flex;
+        flex-direction: row;
+        gap: 0.5rem;
+      }
+
+      .toggle-button[aria-pressed="true"] {
+        background: rgba(255, 255, 255, 0.08);
+      }
     </style>
   </head>
   <body>
@@ -109,6 +122,25 @@
     </div>
 
     <button id="change-settings-button" type="button" hidden>Change settings</button>
+
+    <div id="toggle-buttons" hidden>
+      <button
+        id="wireframe-toggle-button"
+        type="button"
+        class="toggle-button"
+        aria-pressed="false"
+      >
+        Wireframe
+      </button>
+      <button
+        id="flat-shading-toggle-button"
+        type="button"
+        class="toggle-button"
+        aria-pressed="false"
+      >
+        Flat shading
+      </button>
+    </div>
 
     <dialog id="error-modal">
       <p id="error-modal-message"></p>
