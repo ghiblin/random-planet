@@ -1,4 +1,4 @@
-# 020 — Subdivision Frame Pacing
+# 022 — Subdivision Frame Pacing
 
 **Status:** Ready for review
 **Feature slug:** `subdivision-frame-pacing`
