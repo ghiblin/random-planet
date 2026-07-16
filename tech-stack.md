@@ -19,7 +19,7 @@
 | `winit` | default | `planet-renderer` |
 | `wasm-bindgen` | default | `planet-renderer` |
 | `wasm-bindgen-futures` | default | `planet-renderer` (drives the async adapter/device setup on the wasm event loop) |
-| `web-sys` | grows per DOM API touched (currently `console`, `Document`, `Element`, `Node`, `EventTarget`, `HtmlInputElement`, `HtmlDialogElement`) | `planet-renderer` |
+| `web-sys` | grows per DOM API touched (currently `console`, `Document`, `Element`, `Node`, `EventTarget`, `HtmlInputElement`, `HtmlDialogElement`, `Performance`) | `planet-renderer` |
 | `js-sys` | default | `planet-renderer` (reads `Date.now()` to seed each Start-click's `Planet`) |
 | `rand` | default | `planet-core` |
 | `rand_pcg` | default | `planet-core` (seeded RNG — required for deterministic generation) |

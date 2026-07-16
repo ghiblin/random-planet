@@ -42,6 +42,10 @@ harness = false
 name = "seed_from_timestamp"
 harness = false
 
+[[test]]
+name = "growth_animation"
+harness = false
+
 [dependencies]
 planet-core = { path = "../planet-core" }
 js-sys = "0.3.103"
@@ -55,6 +59,7 @@ web-sys = { version = "0.3.103", features = [
     "EventTarget",
     "HtmlInputElement",
     "HtmlDialogElement",
+    "Performance",
 ] }
 wgpu = "30.0.0"
 winit = "0.30.13"
