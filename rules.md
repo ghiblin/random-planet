@@ -85,7 +85,10 @@ file (naming, one-type-per-file) is enforced — not by an automated test.
   `processor/vertex_scramble.rs`'s `scramble_vertices` before storing the mesh)
 
 `planet-renderer`'s concerns:
-- `scene/` — `camera.rs` (`Camera`): orbit/zoom input math
+- `scene/` — `camera.rs` (`Camera`): orbit/zoom input math; `growth_animation.rs`
+  (`GrowthAnimation`, `FRAME_INTERVAL_MS`): paces the subdivision growth-animation
+  frame reveal by wall-clock elapsed time, no browser API calls — the actual
+  `Performance` timestamp reads stay in `app.rs`
 - `gpu/` — `buffers.rs`, `uniforms.rs`, `render.rs`, `shader.wgsl`: everything
   wgpu-facing — mesh/preset-to-GPU-data mapping and the actual device/pipeline/draw calls
 - `controls/` — `preset_select.rs` (`parse_preset`), `depth_slider.rs` (`MIN_DEPTH`,

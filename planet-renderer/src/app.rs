@@ -13,7 +13,6 @@ use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::platform::web::WindowAttributesExtWebSys;
 use winit::window::{Window, WindowId};
 
-use planet_core::color::rgb::Rgb;
 use planet_core::geometry::mesh::Mesh;
 use planet_core::planets::planet::{GenerationProgress, Planet};
 use planet_core::presets::preset::Preset;
@@ -26,14 +25,26 @@ use crate::controls::preset_select::parse_preset;
 use crate::controls::seed_from_timestamp::seed_from_timestamp;
 use crate::gpu::render::Renderer;
 use crate::scene::camera::Camera;
+use crate::scene::growth_animation::GrowthAnimation;
 
 const ORBIT_SENSITIVITY: f32 = 0.005;
 const ZOOM_LINE_SENSITIVITY: f32 = 0.5;
 const ZOOM_PIXEL_SENSITIVITY: f32 = 0.01;
 
-/// The current growth-animation frame list and playback position, shared between
-/// winit's event loop and the DOM closures set up in `App::wire_controls`.
-type Frames = Rc<RefCell<(Vec<(Mesh, Vec<Rgb>)>, usize)>>;
+/// The in-progress growth animation, shared between winit's event loop and the DOM
+/// closures set up in `App::wire_controls`. `None` before the first generation.
+type Frames = Rc<RefCell<Option<GrowthAnimation>>>;
+
+/// Reads the browser's high-resolution clock, used to pace the growth animation by
+/// wall-clock elapsed time rather than by redraw frequency. `None` (logged) if the
+/// `Performance` API is unavailable, e.g. no `window`.
+fn performance_now_ms() -> Option<f64> {
+    let performance = web_sys::window().and_then(|window| window.performance());
+    if performance.is_none() {
+        log_error("failed to access Performance API");
+    }
+    performance.map(|performance| performance.now())
+}
 
 pub struct App {
     window: Option<Arc<Window>>,
@@ -54,7 +65,7 @@ impl Default for App {
             camera: Camera::default(),
             dragging: false,
             last_cursor: None,
-            frames: Rc::new(RefCell::new((Vec::new(), 0))),
+            frames: Rc::new(RefCell::new(None)),
             wireframe: Rc::new(RefCell::new(false)),
             flat_shading: Rc::new(RefCell::new(false)),
         }
@@ -235,8 +246,13 @@ fn generate(
         *last = (subdivided.mesh().clone(), subdivided.colors().to_vec());
     }
 
+    let Some(started_ms) = performance_now_ms() else {
+        return;
+    };
+    let animation = GrowthAnimation::new(new_frames, started_ms);
+
     match frames.try_borrow_mut() {
-        Ok(mut frames_ref) => *frames_ref = (new_frames, 0),
+        Ok(mut frames_ref) => *frames_ref = Some(animation),
         Err(_) => {
             log_error("generate: frames already borrowed when storing new generation");
             return;
@@ -248,7 +264,8 @@ fn generate(
             if let Some(renderer) = renderer_ref.as_mut() {
                 match frames.try_borrow() {
                     Ok(frames_ref) => {
-                        if let Some((mesh, colors)) = frames_ref.0.first() {
+                        if let Some(animation) = frames_ref.as_ref() {
+                            let (mesh, colors) = animation.current();
                             renderer.set_mesh(mesh, colors);
                         }
                     }
@@ -530,25 +547,27 @@ impl ApplicationHandler for App {
                 }
             }
             WindowEvent::RedrawRequested => {
-                match self.frames.try_borrow_mut() {
-                    Ok(mut frames) => {
-                        let (frame_list, current_frame) = &mut *frames;
-                        if *current_frame + 1 < frame_list.len() {
-                            *current_frame += 1;
-                            match self.renderer.try_borrow_mut() {
-                                Ok(mut renderer_ref) => {
-                                    if let Some(renderer) = renderer_ref.as_mut() {
-                                        let (mesh, colors) = &frame_list[*current_frame];
-                                        renderer.set_mesh(mesh, colors);
+                if let Some(now_ms) = performance_now_ms() {
+                    match self.frames.try_borrow_mut() {
+                        Ok(mut frames) => {
+                            if let Some(animation) = frames.as_mut() {
+                                if animation.tick(now_ms) {
+                                    match self.renderer.try_borrow_mut() {
+                                        Ok(mut renderer_ref) => {
+                                            if let Some(renderer) = renderer_ref.as_mut() {
+                                                let (mesh, colors) = animation.current();
+                                                renderer.set_mesh(mesh, colors);
+                                            }
+                                        }
+                                        Err(_) => log_error(
+                                            "redraw: renderer already borrowed while advancing frame",
+                                        ),
                                     }
                                 }
-                                Err(_) => log_error(
-                                    "redraw: renderer already borrowed while advancing frame",
-                                ),
                             }
                         }
+                        Err(_) => log_error("redraw: frames already borrowed"),
                     }
-                    Err(_) => log_error("redraw: frames already borrowed"),
                 }
                 match self.renderer.try_borrow() {
                     Ok(renderer_ref) => {
