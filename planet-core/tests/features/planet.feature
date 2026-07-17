@@ -95,3 +95,13 @@ Feature: Planet aggregate generation
     Given a Planet generated with seed 5 and the Earthy preset at max depth 3
     When another Planet is generated with seed 5 and the Volcano preset at max depth 3
     Then both resulting Planets' meshes have exactly 1280 faces
+
+  Scenario: Subdividing a Planet with an ocean-quota preset reports both postprocessing stages in order
+    Given a Planet generated with seed 5 and the Earthy preset at max depth 2
+    When that Planet is subdivided again with a postprocessing-stage observer
+    Then the observer received [TerrainNoise, OceanQuota] in that order
+
+  Scenario: Subdividing a Planet with a preset that has no ocean quota reports only the terrain-noise stage
+    Given a Planet generated with seed 5 and the Rocky preset at max depth 2
+    When that Planet is subdivided again with a postprocessing-stage observer
+    Then the observer received [TerrainNoise] only

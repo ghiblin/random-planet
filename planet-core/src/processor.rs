@@ -1,8 +1,5 @@
-pub(crate) mod compose_mesh;
 pub mod finalize_normals;
-pub(crate) mod identity_mesh;
 pub(crate) mod jitter;
-pub(crate) mod mesh_processor;
 pub mod ocean_quota;
 pub mod terrain_noise;
 pub(crate) mod vertex_operator;

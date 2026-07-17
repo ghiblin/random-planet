@@ -226,7 +226,7 @@ fn generate(
             .push((finalize_normals(mesh), colors));
     });
 
-    let subdivided = match planet.subdivide(depth, Some(on_progress)) {
+    let subdivided = match planet.subdivide(depth, Some(on_progress), None) {
         Ok(subdivided) => subdivided,
         Err(error) => {
             log_error(&format!("failed to subdivide planet: {error}"));
