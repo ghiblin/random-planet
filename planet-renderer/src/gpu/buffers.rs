@@ -69,3 +69,20 @@ pub fn pack_index_buffer(indices: &[u32]) -> Vec<u8> {
     }
     bytes
 }
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct PackedFrame {
+    pub vertex_bytes_smooth: Vec<u8>,
+    pub vertex_bytes_flat: Vec<u8>,
+    pub index_bytes: Vec<u8>,
+    pub line_index_bytes: Vec<u8>,
+}
+
+pub fn pack_frame(mesh: &Mesh, colors: &[Rgb]) -> PackedFrame {
+    PackedFrame {
+        vertex_bytes_smooth: pack_vertex_buffer(&mesh_render_vertices(mesh, colors, false)),
+        vertex_bytes_flat: pack_vertex_buffer(&mesh_render_vertices(mesh, colors, true)),
+        index_bytes: pack_index_buffer(&mesh_render_indices(mesh)),
+        line_index_bytes: pack_index_buffer(&mesh_render_line_indices(mesh)),
+    }
+}

@@ -1,6 +1,7 @@
 use cucumber::{World as _, given, then, when};
 use planet_core::geometry::mesh::Mesh;
-use planet_core::planets::planet::{GenerationProgress, Planet};
+use planet_core::planets::planet::{GenerationProgress, Planet, PostprocessProgress};
+use planet_core::planets::postprocess_stage::PostprocessStage;
 use planet_core::presets::preset::Preset;
 use planet_core::subdivision::seed::Seed;
 use planet_core::subdivision::steps::Steps;
@@ -8,12 +9,14 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 type Invocations = Rc<RefCell<Vec<(Mesh, usize)>>>;
+type PostprocessInvocations = Rc<RefCell<Vec<PostprocessStage>>>;
 
 #[derive(Debug, Default, cucumber::World)]
 pub struct PlanetWorld {
     first_planet: Option<Planet>,
     second_planet: Option<Planet>,
     callback_invocations: Option<Invocations>,
+    postprocess_invocations: Option<PostprocessInvocations>,
 }
 
 impl PlanetWorld {
@@ -63,7 +66,11 @@ fn create(seed: u64, preset_name: &str) -> Planet {
 
 fn generate(seed: u64, preset_name: &str, max_depth: usize) -> Planet {
     create(seed, preset_name)
-        .subdivide(Steps::new(max_depth).expect("Steps::new failed"), None)
+        .subdivide(
+            Steps::new(max_depth).expect("Steps::new failed"),
+            None,
+            None,
+        )
         .expect("Planet::subdivide failed")
 }
 
@@ -376,6 +383,7 @@ fn when_generated_with_callback(
             .subdivide(
                 Steps::new(max_depth).expect("Steps::new failed"),
                 Some(on_progress),
+                None,
             )
             .expect("Planet::subdivide failed"),
     );
@@ -475,7 +483,11 @@ fn when_subdivided_to_max_depth(world: &mut PlanetWorld, max_depth: usize) {
         .expect("first Planet not generated");
     world.first_planet = Some(
         planet
-            .subdivide(Steps::new(max_depth).expect("Steps::new failed"), None)
+            .subdivide(
+                Steps::new(max_depth).expect("Steps::new failed"),
+                None,
+                None,
+            )
             .expect("Planet::subdivide failed"),
     );
 }
@@ -529,6 +541,47 @@ fn then_ocean_quota_fraction_within_tolerance(
         (fraction - quota).abs() <= tolerance,
         "fraction at sea level {fraction} is not within {tolerance} of configured quota {quota}"
     );
+}
+
+#[when("that Planet is subdivided again with a postprocessing-stage observer")]
+fn when_subdivided_with_postprocess_observer(world: &mut PlanetWorld) {
+    let planet = world
+        .first_planet
+        .take()
+        .expect("first Planet not generated");
+    let invocations: PostprocessInvocations = Rc::new(RefCell::new(Vec::new()));
+    let recorder = invocations.clone();
+    let on_postprocess: PostprocessProgress = Box::new(move |stage| {
+        recorder.borrow_mut().push(stage);
+    });
+    world.postprocess_invocations = Some(invocations);
+    world.first_planet = Some(
+        planet
+            .subdivide(
+                Steps::new(1).expect("Steps::new failed"),
+                None,
+                Some(on_postprocess),
+            )
+            .expect("Planet::subdivide failed"),
+    );
+}
+
+#[then(regex = r"^the observer received \[([^\]]*)\]")]
+fn then_observer_received(world: &mut PlanetWorld, stages_csv: String) {
+    let expected: Vec<PostprocessStage> = stages_csv
+        .split(',')
+        .map(|name| match name.trim() {
+            "TerrainNoise" => PostprocessStage::TerrainNoise,
+            "OceanQuota" => PostprocessStage::OceanQuota,
+            other => panic!("unknown PostprocessStage: {other}"),
+        })
+        .collect();
+    let actual = world
+        .postprocess_invocations
+        .as_ref()
+        .expect("no postprocess-stage observer given")
+        .borrow();
+    assert_eq!(*actual, expected);
 }
 
 #[tokio::main]

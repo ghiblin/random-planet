@@ -4,7 +4,20 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Fractal Planet</title>
-    <link data-trunk rel="rust" href="planet-renderer/Cargo.toml" />
+    <link
+      data-trunk
+      rel="rust"
+      href="planet-renderer/Cargo.toml"
+      data-target-name="planet_renderer"
+    />
+    <link
+      data-trunk
+      rel="rust"
+      href="planet-renderer/Cargo.toml"
+      data-bin="generation_worker"
+      data-type="worker"
+      data-loader-shim
+    />
     <style>
       html,
       body {

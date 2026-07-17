@@ -4,11 +4,7 @@ use crate::color::color_gradient::ColorGradient;
 use crate::color::rgb::Rgb;
 use crate::geometry::mesh::{Mesh, MeshError};
 use crate::presets::preset::Preset;
-use crate::presets::preset_params::PresetParams;
-use crate::processor::compose_mesh::compose_mesh;
 use crate::processor::finalize_normals::finalize_normals;
-use crate::processor::identity_mesh::identity_mesh;
-use crate::processor::mesh_processor::MeshProcessor;
 use crate::processor::ocean_quota::apply_ocean_quota;
 use crate::processor::terrain_noise::apply_terrain_noise;
 use crate::subdivision::seed::Seed;
@@ -17,8 +13,10 @@ use crate::subdivision::subdivide::subdivide;
 use crate::subdivision::subdivision_args::SubdivisionArgs;
 
 use super::planet_builder::PlanetBuilder;
+use super::postprocess_stage::PostprocessStage;
 
 pub type GenerationProgress = Box<dyn FnMut(&Mesh, usize)>;
+pub type PostprocessProgress = Box<dyn FnMut(PostprocessStage)>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Planet {
@@ -60,21 +58,6 @@ fn vertex_color(radius: f32, sea_level: Option<f32>, gradient: &ColorGradient) -
     }
 }
 
-fn postprocessing_pipeline(params: &PresetParams, seed: Seed) -> MeshProcessor {
-    let terrain_noise = params.terrain_noise();
-    let mut pipeline = compose_mesh(
-        identity_mesh(),
-        Box::new(move |mesh: &Mesh| apply_terrain_noise(mesh, seed, terrain_noise)),
-    );
-    if let Some(quota) = params.ocean_quota() {
-        pipeline = compose_mesh(
-            pipeline,
-            Box::new(move |mesh: &Mesh| apply_ocean_quota(mesh, quota)),
-        );
-    }
-    pipeline
-}
-
 impl Planet {
     pub fn builder() -> PlanetBuilder {
         PlanetBuilder::default()
@@ -84,6 +67,7 @@ impl Planet {
         &self,
         max_depth: Steps,
         on_progress: Option<GenerationProgress>,
+        on_postprocess: Option<PostprocessProgress>,
     ) -> Result<Planet, PlanetError> {
         let params = self.preset.params();
         let mut on_progress = on_progress;
@@ -97,7 +81,21 @@ impl Planet {
             on_progress,
         );
         let mesh = subdivide(&self.mesh, args)?;
-        let mesh = postprocessing_pipeline(&params, self.seed)(&mesh)?;
+
+        let mut on_postprocess = on_postprocess;
+        if let Some(callback) = on_postprocess.as_mut() {
+            callback(PostprocessStage::TerrainNoise);
+        }
+        let mesh = apply_terrain_noise(&mesh, self.seed, params.terrain_noise())?;
+        let mesh = match params.ocean_quota() {
+            Some(quota) => {
+                if let Some(callback) = on_postprocess.as_mut() {
+                    callback(PostprocessStage::OceanQuota);
+                }
+                apply_ocean_quota(&mesh, quota)?
+            }
+            None => mesh,
+        };
         let sea_level = params.ocean_quota().map(|_| {
             mesh.vertices()
                 .iter()
