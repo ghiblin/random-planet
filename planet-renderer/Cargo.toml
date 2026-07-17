@@ -46,6 +46,10 @@ harness = false
 name = "growth_animation"
 harness = false
 
+[[test]]
+name = "pack_frame"
+harness = false
+
 [dependencies]
 planet-core = { path = "../planet-core" }
 js-sys = "0.3.103"
@@ -60,6 +64,9 @@ web-sys = { version = "0.3.103", features = [
     "HtmlInputElement",
     "HtmlDialogElement",
     "Performance",
+    "Worker",
+    "MessageEvent",
+    "DedicatedWorkerGlobalScope",
 ] }
 wgpu = "30.0.0"
 winit = "0.30.13"

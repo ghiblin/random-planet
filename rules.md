@@ -12,9 +12,14 @@ Both crates organize `src/` by concern, not as a flat file list: every module li
 under a concern subdirectory, declared via a sibling `<concern>.rs` file (Rust 2024
 module style — no `mod.rs`). The only files allowed directly under `src/` are
 `lib.rs` (both crates) and `app.rs` (`planet-renderer`'s composition root — wasm-bindgen
-entry point + winit event loop, wiring only). This is a documentation rule, enforced
-at `planet-pr-validate` review time — the same way every other convention in this
-file (naming, one-type-per-file) is enforced — not by an automated test.
+entry point + winit event loop, wiring only). `planet-renderer/src/bin/generation_worker.rs`
+is a separate, Cargo-standard exception to this same rule — `src/bin/*.rs` is its own
+sanctioned location for extra binary targets, distinct from the `src/`-direct-files
+restriction above; it is the Web Worker's own wasm-bindgen entry point (composition
+root for the generation-off-the-main-thread flow), thin wiring only, same as `app.rs`.
+This is a documentation rule, enforced at `planet-pr-validate` review time — the same
+way every other convention in this file (naming, one-type-per-file) is enforced — not
+by an automated test.
 
 `planet-core`'s concerns:
 - `geometry/` — `vec3.rs` (`Vec3`), `vertex.rs` (`Vertex`), `edge.rs` (`Edge`),
@@ -60,16 +65,12 @@ file (naming, one-type-per-file) is enforced — not by an automated test.
   (`VertexOperator`, `pub(crate)`), `jitter.rs` (`jitter`, `pub(crate)` — displaces
   a split point tangentially along its edge and along the edge's normal, each
   magnitude proportional to the edge's current length));
-  plus the whole-mesh `MeshProcessor` building blocks `Planet::subdivide` composes
-  into its post-subdivision pipeline (`mesh_processor.rs` (`MeshProcessor`,
-  `pub(crate)`), `identity_mesh.rs` (`identity_mesh`, `pub(crate)`),
-  `compose_mesh.rs` (`compose_mesh`, `pub(crate)`));
   plus `finalize_normals.rs` (`finalize_normals`, `pub` — computes each `Face`'s flat
   normal and each `Vertex`'s area-weighted normal from the mesh's final geometry;
   called once by `Planet::subdivide`/`PlanetBuilder::build` after every
-  position-mutating step, and directly by `planet-renderer`'s `app.rs` on
-  mid-subdivision animation frames, the same way it already calls
-  `ColorGradient::sample` directly on those frames)
+  position-mutating step, and directly by `planet-renderer`'s
+  `src/bin/generation_worker.rs` on mid-subdivision animation frames, the same way it
+  already calls `ColorGradient::sample` directly on those frames)
 - `color/` — elevation-to-color mapping value types, no algorithm: `rgb.rs` (`Rgb`,
   `RgbError`), `color_gradient.rs` (`ColorGradient`, `ColorGradientError`)
 - `presets/` — bundles the subdivision/color knobs into named, pre-tuned presets:
@@ -80,9 +81,12 @@ file (naming, one-type-per-file) is enforced — not by an automated test.
   (`Preset`)
 - `planets/` — the aggregate root, split into its two lifecycle operations:
   `planet.rs` (`Planet` — including its `subdivide` method, `PlanetError`,
-  `GenerationProgress`), `planet_builder.rs` (`PlanetBuilder` — creation only,
-  no subdivision; scrambles the icosahedron's base vertices via
-  `processor/vertex_scramble.rs`'s `scramble_vertices` before storing the mesh)
+  `GenerationProgress`, `PostprocessProgress`), `planet_builder.rs` (`PlanetBuilder`
+  — creation only, no subdivision; scrambles the icosahedron's base vertices via
+  `processor/vertex_scramble.rs`'s `scramble_vertices` before storing the mesh),
+  `postprocess_stage.rs` (`PostprocessStage` — the two coarse, observable stages
+  `Planet::subdivide`'s postprocessing pass reports via `PostprocessProgress`:
+  `TerrainNoise` always, `OceanQuota` only when the preset configures one)
 
 `planet-renderer`'s concerns:
 - `scene/` — `camera.rs` (`Camera`): orbit/zoom input math; `growth_animation.rs`
@@ -96,6 +100,11 @@ file (naming, one-type-per-file) is enforced — not by an automated test.
   (`seed_from_timestamp`): pure DOM-value parsing/validation and timestamp-to-seed
   conversion, no browser API calls — the actual element lookups/listeners/clock reads
   stay in `app.rs`
+- `worker/` — `protocol.rs` (`StartRequest`, `WorkerMessage`): plain, natively-testable
+  message payload types shared between the main-thread entry point (`app.rs`) and the
+  generation-worker entry point (`src/bin/generation_worker.rs`); the actual `JsValue`
+  `postMessage`/`onmessage` encode/decode conversions live in the same file, `#[cfg(target_arch
+  = "wasm32")]`-gated, same class of thin wiring as `app.rs`'s DOM glue
 - `app.rs` (top-level) — winit event loop, wasm-bindgen entry point, HTML control wiring
 
 Adding a new type: put it in the file for its existing concern if one fits; only
@@ -115,8 +124,9 @@ primitive directly. Reading an already-obtained `Mesh`'s own data (`vertices()`,
 `edges()`, `faces()`, e.g. `planet-renderer`'s `gpu/buffers.rs`) is unaffected — the
 rule is about how a `Mesh` is *produced*, not how its data is *read*. Deriving
 read-only shading data from an already-produced `Mesh` is likewise unaffected — e.g.
-`finalize_normals`, called directly by `planet-renderer`'s `app.rs` on mid-subdivision
-animation frames, the same way it already calls `ColorGradient::sample` on them.
+`finalize_normals`, called directly by `planet-renderer`'s `src/bin/generation_worker.rs`
+on mid-subdivision animation frames, the same way it already calls `ColorGradient::sample`
+on them.
 
 This is a documentation rule, enforced at `planet-pr-validate` review time, not by the
 compiler: every generation primitive stays `pub` because `planet-core`'s own BDD/unit

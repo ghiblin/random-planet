@@ -4,7 +4,9 @@ use std::sync::Arc;
 
 use wasm_bindgen::JsCast;
 use wasm_bindgen::closure::Closure;
-use web_sys::{Document, Element, Event, HtmlDialogElement, HtmlInputElement};
+use web_sys::{
+    Document, Element, Event, HtmlDialogElement, HtmlInputElement, MessageEvent, Worker,
+};
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalPosition;
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
@@ -14,22 +16,28 @@ use winit::platform::web::WindowAttributesExtWebSys;
 use winit::window::{Window, WindowId};
 
 use planet_core::geometry::mesh::Mesh;
-use planet_core::planets::planet::{GenerationProgress, Planet};
 use planet_core::presets::preset::Preset;
-use planet_core::processor::finalize_normals::finalize_normals;
 use planet_core::subdivision::seed::Seed;
 use planet_core::subdivision::steps::Steps;
 
 use crate::controls::depth_slider;
 use crate::controls::preset_select::parse_preset;
 use crate::controls::seed_from_timestamp::seed_from_timestamp;
+use crate::gpu::buffers::pack_frame;
 use crate::gpu::render::Renderer;
 use crate::scene::camera::Camera;
 use crate::scene::growth_animation::GrowthAnimation;
+use crate::worker::protocol::{StartRequest, WorkerMessage};
 
 const ORBIT_SENSITIVITY: f32 = 0.005;
 const ZOOM_LINE_SENSITIVITY: f32 = 0.5;
 const ZOOM_PIXEL_SENSITIVITY: f32 = 0.01;
+
+/// Trunk's worker-asset pipeline emits the `generation_worker` bin target's loader
+/// script under this name (`data-trunk rel="rust" data-type="worker"
+/// data-bin="generation_worker"` in `index.html`) — confirmed/adjusted against Trunk's
+/// actual build output during manual in-browser verification.
+const GENERATION_WORKER_SCRIPT_URL: &str = "./generation_worker_loader.js";
 
 /// The in-progress growth animation, shared between winit's event loop and the DOM
 /// closures set up in `App::wire_controls`. `None` before the first generation.
@@ -53,6 +61,7 @@ pub struct App {
     dragging: bool,
     last_cursor: Option<PhysicalPosition<f64>>,
     frames: Frames,
+    worker: Option<Worker>,
     wireframe: Rc<RefCell<bool>>,
     flat_shading: Rc<RefCell<bool>>,
 }
@@ -66,6 +75,7 @@ impl Default for App {
             dragging: false,
             last_cursor: None,
             frames: Rc::new(RefCell::new(None)),
+            worker: None,
             wireframe: Rc::new(RefCell::new(false)),
             flat_shading: Rc::new(RefCell::new(false)),
         }
@@ -184,105 +194,122 @@ fn configure_depth_slider(slider: &HtmlInputElement) {
     slider.set_value(&Steps::default().value().to_string());
 }
 
-/// Builds and subdivides a fresh `Planet` from `(preset, depth, seed)`, always from
-/// scratch — every Start click gets its own timestamp-derived seed, so there is
-/// nothing to reuse from a previous generation. Collects the per-round growth
-/// animation into `frames` (colored via the preset's own `ColorGradient`, since
-/// that's a pure function of a vertex's radius, valid for every intermediate round;
-/// normals are finalized the same way per frame so the growth animation renders with
-/// smooth shading too), then swaps the last collected frame for `Planet::subdivide`'s
-/// true, fully post-processed result before handing the first frame to the renderer.
+fn create_generation_worker() -> Option<Worker> {
+    // The loader Trunk emits for a worker asset (`generation_worker_loader.js`) uses
+    // `importScripts(...)` to load the wasm-bindgen glue, which is only available to
+    // classic workers — a module worker has no `importScripts` and would fail at
+    // runtime, so this must stay the default (classic) `Worker::new`, not
+    // `new_with_options` with `WorkerType::Module`.
+    match Worker::new(GENERATION_WORKER_SCRIPT_URL) {
+        Ok(worker) => Some(worker),
+        Err(_) => {
+            log_error("failed to create generation worker");
+            None
+        }
+    }
+}
+
+fn set_start_button_disabled(document: &Document, disabled: bool) {
+    let Some(start_button) = get_element(document, "start-button") else {
+        return;
+    };
+    if disabled {
+        let _ = start_button.set_attribute("disabled", "");
+    } else {
+        let _ = start_button.remove_attribute("disabled");
+    }
+}
+
+/// Posts a `StartRequest` to the generation worker instead of computing anything on
+/// the main thread — every Start click gets its own timestamp-derived seed, so there
+/// is nothing to reuse from a previous generation. Resets `frames` to a fresh, empty
+/// `GrowthAnimation` so the new generation's reveal starts clean, and disables
+/// `#start-button` for the duration of the in-flight request (re-enabled by
+/// `handle_worker_message` once a final frame or an error arrives).
 fn generate(
     preset: Preset,
     depth: Steps,
     seed: Seed,
-    renderer: &Rc<RefCell<Option<Renderer>>>,
+    worker: &Worker,
     frames: &Frames,
+    document: &Document,
+) {
+    match frames.try_borrow_mut() {
+        Ok(mut frames_ref) => *frames_ref = Some(GrowthAnimation::new()),
+        Err(_) => {
+            log_error("generate: frames already borrowed when resetting for new generation");
+            return;
+        }
+    }
+
+    set_start_button_disabled(document, true);
+
+    let request = StartRequest {
+        preset,
+        depth,
+        seed,
+    };
+    if worker.post_message(&request.to_js_value()).is_err() {
+        log_error("failed to post StartRequest to generation worker");
+    }
+}
+
+/// Handles one decoded `WorkerMessage` from the generation worker: pushes `Frame`s
+/// into the growth animation (uploading to the GPU immediately if this is the very
+/// first frame of the generation, matching `GrowthAnimation::push_frame`'s own
+/// reveal-immediately rule), and re-enables `#start-button` once a final frame or an
+/// error arrives.
+fn handle_worker_message(
+    message: WorkerMessage,
+    frames: &Frames,
+    renderer: &Rc<RefCell<Option<Renderer>>>,
+    document: &Document,
     window: &Window,
 ) {
-    let planet = match Planet::builder()
-        .with_preset(preset)
-        .with_seed(seed)
-        .build()
-    {
-        Ok(planet) => planet,
-        Err(error) => {
-            log_error(&format!("failed to create planet: {error}"));
-            return;
-        }
-    };
-
-    let params = preset.params();
-    let collected_frames = Rc::new(RefCell::new(Vec::new()));
-    let frame_collector = collected_frames.clone();
-    let on_progress: GenerationProgress = Box::new(move |mesh, _round| {
-        let colors = mesh
-            .vertices()
-            .iter()
-            .map(|vertex| params.color_gradient().sample(vertex.position.length()))
-            .collect();
-        frame_collector
-            .borrow_mut()
-            .push((finalize_normals(mesh), colors));
-    });
-
-    let subdivided = match planet.subdivide(depth, Some(on_progress), None) {
-        Ok(subdivided) => subdivided,
-        Err(error) => {
-            log_error(&format!("failed to subdivide planet: {error}"));
-            return;
-        }
-    };
-
-    let mut new_frames = match Rc::try_unwrap(collected_frames) {
-        Ok(cell) => cell.into_inner(),
-        Err(_) => {
-            log_error("failed to collect generation frames: on_progress outlived generate");
-            return;
-        }
-    };
-
-    if let Some(last) = new_frames.last_mut() {
-        *last = (subdivided.mesh().clone(), subdivided.colors().to_vec());
-    }
-
-    let Some(started_ms) = performance_now_ms() else {
-        return;
-    };
-    let animation = GrowthAnimation::new(new_frames, started_ms);
-
-    match frames.try_borrow_mut() {
-        Ok(mut frames_ref) => *frames_ref = Some(animation),
-        Err(_) => {
-            log_error("generate: frames already borrowed when storing new generation");
-            return;
-        }
-    }
-
-    match renderer.try_borrow_mut() {
-        Ok(mut renderer_ref) => {
-            if let Some(renderer) = renderer_ref.as_mut() {
-                match frames.try_borrow() {
-                    Ok(frames_ref) => {
-                        if let Some(animation) = frames_ref.as_ref() {
-                            let (mesh, colors) = animation.current();
-                            renderer.set_mesh(mesh, colors);
+    match message {
+        WorkerMessage::Frame { frame, is_final } => {
+            let Some(now_ms) = performance_now_ms() else {
+                return;
+            };
+            match frames.try_borrow_mut() {
+                Ok(mut frames_ref) => {
+                    let animation = frames_ref.get_or_insert_with(GrowthAnimation::new);
+                    let was_empty = animation.current().is_none();
+                    animation.push_frame(frame, now_ms);
+                    if was_empty {
+                        if let Some(current) = animation.current() {
+                            match renderer.try_borrow_mut() {
+                                Ok(mut renderer_ref) => {
+                                    if let Some(renderer) = renderer_ref.as_mut() {
+                                        renderer.set_mesh(current);
+                                    }
+                                }
+                                Err(_) => log_error(
+                                    "worker message: renderer already borrowed when pushing first frame",
+                                ),
+                            }
                         }
                     }
-                    Err(_) => {
-                        log_error("generate: frames already borrowed when reading first frame")
-                    }
                 }
+                Err(_) => log_error("worker message: frames already borrowed"),
             }
+            if is_final {
+                set_start_button_disabled(document, false);
+            }
+            window.request_redraw();
         }
-        Err(_) => log_error("generate: renderer already borrowed when pushing first frame"),
+        WorkerMessage::PostprocessStage(_stage) => {
+            // Hook for a future status label; not required to fix the reported freeze.
+        }
+        WorkerMessage::Error(message) => {
+            log_error(&format!("generation worker error: {message}"));
+            set_start_button_disabled(document, false);
+        }
     }
-
-    window.request_redraw();
 }
 
 impl App {
-    fn wire_controls(&self, window: &Arc<Window>) {
+    fn wire_controls(&self) {
         let Some(document) = document() else {
             return;
         };
@@ -318,7 +345,7 @@ impl App {
             let document_for_start = document.clone();
             let renderer = self.renderer.clone();
             let frames = self.frames.clone();
-            let window = window.clone();
+            let worker = self.worker.clone();
             let closure = Closure::<dyn FnMut(Event)>::new(move |_event: Event| {
                 let document = &document_for_start;
 
@@ -366,7 +393,11 @@ impl App {
                     return;
                 }
 
-                generate(preset, depth, seed, &renderer, &frames, &window);
+                let Some(worker) = worker.as_ref() else {
+                    log_error("generation worker not ready yet; ignoring Start click");
+                    return;
+                };
+                generate(preset, depth, seed, worker, &frames, document);
             });
             let _ = start_button
                 .add_event_listener_with_callback("click", closure.as_ref().unchecked_ref());
@@ -441,7 +472,27 @@ impl ApplicationHandler for App {
         };
         self.window = Some(window.clone());
         window.request_redraw();
-        self.wire_controls(&window);
+
+        self.worker = create_generation_worker();
+        if let Some(worker) = &self.worker {
+            let frames = self.frames.clone();
+            let renderer = self.renderer.clone();
+            let window_for_messages = window.clone();
+            let on_message = Closure::<dyn FnMut(MessageEvent)>::new(move |event: MessageEvent| {
+                let Some(document) = document() else {
+                    return;
+                };
+                let Some(message) = WorkerMessage::from_js_value(&event.data()) else {
+                    log_error("failed to decode a message from the generation worker");
+                    return;
+                };
+                handle_worker_message(message, &frames, &renderer, &document, &window_for_messages);
+            });
+            worker.set_onmessage(Some(on_message.as_ref().unchecked_ref()));
+            on_message.forget();
+        }
+
+        self.wire_controls();
 
         let empty_mesh = match Mesh::new(vec![], vec![]) {
             Ok(mesh) => mesh,
@@ -452,11 +503,12 @@ impl ApplicationHandler for App {
                 return;
             }
         };
+        let initial_frame = pack_frame(&empty_mesh, &[]);
 
         let renderer_slot = self.renderer.clone();
         let size_probe = window.clone();
         wasm_bindgen_futures::spawn_local(async move {
-            match Renderer::new(window, &empty_mesh, &[]).await {
+            match Renderer::new(window, &initial_frame).await {
                 Ok(mut renderer) => {
                     // The canvas may have been resized by the browser (e.g. once its
                     // ResizeObserver reports the real layout size) while the adapter/device
@@ -555,8 +607,9 @@ impl ApplicationHandler for App {
                                     match self.renderer.try_borrow_mut() {
                                         Ok(mut renderer_ref) => {
                                             if let Some(renderer) = renderer_ref.as_mut() {
-                                                let (mesh, colors) = animation.current();
-                                                renderer.set_mesh(mesh, colors);
+                                                if let Some(frame) = animation.current() {
+                                                    renderer.set_mesh(frame);
+                                                }
                                             }
                                         }
                                         Err(_) => log_error(
