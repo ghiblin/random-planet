@@ -29,13 +29,12 @@ impl GrowthAnimation {
         let Some(last_advance_ms) = self.last_advance_ms else {
             return false;
         };
-        if self.pending.is_empty() || now_ms - last_advance_ms < FRAME_INTERVAL_MS {
+        if now_ms - last_advance_ms < FRAME_INTERVAL_MS {
             return false;
         }
-        let frame = self
-            .pending
-            .pop_front()
-            .expect("pending frame checked non-empty above");
+        let Some(frame) = self.pending.pop_front() else {
+            return false;
+        };
         self.revealed.push(frame);
         self.last_advance_ms = Some(now_ms);
         true
