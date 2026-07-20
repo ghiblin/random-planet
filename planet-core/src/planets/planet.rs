@@ -6,11 +6,11 @@ use crate::geometry::mesh::{Mesh, MeshError};
 use crate::presets::preset::Preset;
 use crate::processor::finalize_normals::finalize_normals;
 use crate::processor::ocean_quota::apply_ocean_quota;
-use crate::processor::terrain_noise::apply_terrain_noise;
+use crate::processor::terrain_noise::apply_terrain_noise_for_round;
 use crate::subdivision::seed::Seed;
 use crate::subdivision::steps::Steps;
 use crate::subdivision::subdivide::subdivide;
-use crate::subdivision::subdivision_args::SubdivisionArgs;
+use crate::subdivision::subdivision_args::{SubdivisionArgs, UpdateCallback};
 
 use super::planet_builder::PlanetBuilder;
 use super::postprocess_stage::PostprocessStage;
@@ -70,23 +70,30 @@ impl Planet {
         on_postprocess: Option<PostprocessProgress>,
     ) -> Result<Planet, PlanetError> {
         let params = self.preset.params();
+        let terrain_noise = params.terrain_noise();
+        let seed = self.seed;
         let mut on_progress = on_progress;
         if let Some(callback) = on_progress.as_mut() {
             callback(&self.mesh, 0);
         }
+        let update_cb: UpdateCallback = Box::new(move |mesh, round| {
+            let revealed_octaves = (round as u32).min(terrain_noise.octaves());
+            let noised =
+                apply_terrain_noise_for_round(&mesh, seed, terrain_noise, revealed_octaves)?;
+            if let Some(callback) = on_progress.as_mut() {
+                callback(&noised, round);
+            }
+            Ok(noised)
+        });
         let args = SubdivisionArgs::new(
             Some(max_depth),
             Some(params.subdivision_mode()),
-            Some(self.seed),
-            on_progress,
+            Some(seed),
+            Some(update_cb),
         );
         let mesh = subdivide(&self.mesh, args)?;
 
         let mut on_postprocess = on_postprocess;
-        if let Some(callback) = on_postprocess.as_mut() {
-            callback(PostprocessStage::TerrainNoise);
-        }
-        let mesh = apply_terrain_noise(&mesh, self.seed, params.terrain_noise())?;
         let mesh = match params.ocean_quota() {
             Some(quota) => {
                 if let Some(callback) = on_postprocess.as_mut() {

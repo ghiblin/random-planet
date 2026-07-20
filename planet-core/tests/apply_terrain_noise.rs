@@ -1,7 +1,9 @@
 use cucumber::{World as _, given, then, when};
 use planet_core::geometry::mesh::Mesh;
 use planet_core::geometry::vec3::Vec3;
-use planet_core::processor::terrain_noise::{TerrainNoise, apply_terrain_noise};
+use planet_core::processor::terrain_noise::{
+    TerrainNoise, apply_terrain_noise, apply_terrain_noise_for_round,
+};
 use planet_core::subdivision::seed::Seed;
 use planet_core::subdivision::subdivide::subdivide;
 use planet_core::subdivision::subdivision_args::SubdivisionArgs;
@@ -17,6 +19,7 @@ pub struct ApplyTerrainNoiseWorld {
     result: Option<Mesh>,
     first_mesh: Option<Mesh>,
     second_mesh: Option<Mesh>,
+    applied_seed: Option<u64>,
 }
 
 impl ApplyTerrainNoiseWorld {
@@ -87,6 +90,18 @@ fn given_terrain_noise(world: &mut ApplyTerrainNoiseWorld, amplitude: f32) {
     );
 }
 
+#[given(regex = r"^a TerrainNoise with amplitude (-?\d+(?:\.\d+)?) and (\d+) octaves?$")]
+fn given_terrain_noise_with_octaves(
+    world: &mut ApplyTerrainNoiseWorld,
+    amplitude: f32,
+    octaves: u32,
+) {
+    world.terrain_noise = Some(
+        TerrainNoise::new(1.5, octaves, 0.5, 2.0, amplitude, 1.0, None)
+            .expect("valid TerrainNoise fixture"),
+    );
+}
+
 #[given(regex = r"^a TerrainNoise with amplitude (-?\d+(?:\.\d+)?) and (\d+) terrace levels$")]
 fn given_terrain_noise_with_terraces(
     world: &mut ApplyTerrainNoiseWorld,
@@ -132,6 +147,87 @@ fn when_applied_second(world: &mut ApplyTerrainNoiseWorld, seed: u64) {
         apply_terrain_noise(&source, Seed::from(seed), terrain_noise)
             .expect("apply_terrain_noise failed"),
     );
+}
+
+#[when(
+    regex = r"^terrain noise for round (\d+) is applied to that mesh with seed (\d+) and that TerrainNoise$"
+)]
+fn when_applied_for_round(world: &mut ApplyTerrainNoiseWorld, round: u32, seed: u64) {
+    let source = world.source_mesh();
+    world.source = Some(source.clone());
+    world.applied_seed = Some(seed);
+    let terrain_noise = world.terrain_noise();
+    world.result = Some(
+        apply_terrain_noise_for_round(&source, Seed::from(seed), terrain_noise, round)
+            .expect("apply_terrain_noise_for_round failed"),
+    );
+}
+
+#[when(
+    regex = r"^terrain noise for round (\d+) is applied to that mesh with seed (\d+) and that TerrainNoise, producing the first Mesh$"
+)]
+fn when_applied_for_round_first(world: &mut ApplyTerrainNoiseWorld, round: u32, seed: u64) {
+    let source = world.source_mesh();
+    world.applied_seed = Some(seed);
+    let terrain_noise = world.terrain_noise();
+    world.first_mesh = Some(
+        apply_terrain_noise_for_round(&source, Seed::from(seed), terrain_noise, round)
+            .expect("apply_terrain_noise_for_round failed"),
+    );
+}
+
+#[when(
+    regex = r"^terrain noise for round (\d+) is applied to the same icosahedron mesh with seed (\d+) and that TerrainNoise, producing the second Mesh$"
+)]
+fn when_applied_for_round_second(world: &mut ApplyTerrainNoiseWorld, round: u32, seed: u64) {
+    let source = world.source_mesh();
+    let terrain_noise = world.terrain_noise();
+    world.second_mesh = Some(
+        apply_terrain_noise_for_round(&source, Seed::from(seed), terrain_noise, round)
+            .expect("apply_terrain_noise_for_round failed"),
+    );
+}
+
+#[then(
+    regex = r"^the resulting Mesh is identical to applying terrain noise for round (\d+) with a TerrainNoise with amplitude (-?\d+(?:\.\d+)?) and (\d+) octaves?$"
+)]
+fn then_identical_to_terrain_noise_for_round_with_octaves(
+    world: &mut ApplyTerrainNoiseWorld,
+    round: u32,
+    amplitude: f32,
+    octaves: u32,
+) {
+    let source = world.source.as_ref().expect("source mesh not recorded");
+    let seed = world.applied_seed.expect("no round application recorded");
+    let alt_terrain_noise = TerrainNoise::new(1.5, octaves, 0.5, 2.0, amplitude, 1.0, None)
+        .expect("valid TerrainNoise fixture");
+    let expected =
+        apply_terrain_noise_for_round(source, Seed::from(seed), alt_terrain_noise, round)
+            .expect("apply_terrain_noise_for_round failed");
+    assert_eq!(world.result(), &expected);
+}
+
+#[then(
+    "the resulting Mesh is identical to applying terrain noise for round 1 with that same TerrainNoise"
+)]
+fn then_identical_to_terrain_noise_for_round_1_same(world: &mut ApplyTerrainNoiseWorld) {
+    let source = world.source.as_ref().expect("source mesh not recorded");
+    let seed = world.applied_seed.expect("no round application recorded");
+    let terrain_noise = world.terrain_noise();
+    let expected = apply_terrain_noise_for_round(source, Seed::from(seed), terrain_noise, 1)
+        .expect("apply_terrain_noise_for_round failed");
+    assert_eq!(world.result(), &expected);
+}
+
+#[then(
+    regex = r"^the resulting Mesh is identical to applying terrain noise to that mesh with seed (\d+) and that TerrainNoise$"
+)]
+fn then_identical_to_whole_mesh_apply(world: &mut ApplyTerrainNoiseWorld, seed: u64) {
+    let source = world.source.as_ref().expect("source mesh not recorded");
+    let terrain_noise = world.terrain_noise();
+    let expected = apply_terrain_noise(source, Seed::from(seed), terrain_noise)
+        .expect("apply_terrain_noise failed");
+    assert_eq!(world.result(), &expected);
 }
 
 #[then(

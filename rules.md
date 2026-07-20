@@ -44,22 +44,36 @@ by an automated test.
   `subdivision_args.rs` (`SubdivisionArgs` — bundles `steps`, `mode`, and `seed`
   independently, since a strategy needs a `Seed` supplied at construction time but
   that `Seed` is never part of `mode`'s own shape), `subdivide.rs`
-  (`SubdivisionStrategy` `pub(crate)`, `subdivide`); plus a nested `strategies/`
-  sub-concern (`uniform_red_split.rs`, `pub(crate)` — exposed publicly only via
-  `SubdivisionMode`, never directly) for the concrete subdivision-algorithm
-  implementation: uniform, near-exact-midpoint geodesic subdivision (each new
-  split vertex is nudged tangentially along its edge and along the edge's normal,
-  proportional to that edge's current length, via `processor/jitter.rs`'s
-  `VertexOperator`) — radial elevation still lives entirely in
-  `processor/terrain_noise.rs` as a post-subdivision whole-mesh step
+  (`SubdivisionStrategy` `pub(crate)`, `subdivide`; `subdivide`'s per-round hook
+  (`SubdivisionArgs.update_cb`, type `UpdateCallback`) is a mesh *transform*, not a
+  read-only observer — `Box<dyn FnMut(Mesh, usize) -> Result<Mesh, MeshError>>`. Each
+  round's `Mesh` is handed to the hook by value; whatever it returns becomes the mesh
+  the *next* round subdivides, propagating `Err` immediately. A hook that returns its
+  input unchanged reproduces plain observation; `Planet::subdivide` uses this to fold
+  `apply_terrain_noise_for_round` into the subdivision loop itself, one more revealed
+  octave per round, instead of as a single pass after subdivision completes); plus a
+  nested `strategies/` sub-concern (`uniform_red_split.rs`, `pub(crate)` — exposed
+  publicly only via `SubdivisionMode`, never directly) for the concrete
+  subdivision-algorithm implementation: uniform, near-exact-midpoint geodesic
+  subdivision (each new split vertex is nudged tangentially along its edge and along
+  the edge's normal, proportional to that edge's current length, via
+  `processor/jitter.rs`'s `VertexOperator`) — radial elevation lives entirely in
+  `processor/terrain_noise.rs`, applied per subdivision round via `Planet::subdivide`'s
+  `update_cb`, not as a separate post-subdivision pass
 - `processor/` — reusable vertex- and mesh-transformation building blocks: whole-mesh
   pre/post-processing steps that run outside the subdivision algorithm, each taking
   an already-built `Mesh` and returning a transformed one (`vertex_scramble_range.rs`
   (`VertexScrambleRange`, `VertexScrambleRangeError`), `vertex_scramble.rs`
   (`scramble_vertices`), `ocean_quota.rs` (`OceanQuota`, `OceanQuotaError`,
   `apply_ocean_quota`), `terrain_noise.rs` (`TerrainNoise`, `TerrainNoiseError`,
-  `apply_terrain_noise`) — samples layered (fBm) noise at each vertex's unit-sphere
-  direction and reshapes it with a redistribution curve and optional terracing);
+  `apply_terrain_noise`, `apply_terrain_noise_for_round`) — samples layered (fBm)
+  noise at each vertex's unit-sphere direction and reshapes it with a redistribution
+  curve and optional terracing; `apply_terrain_noise_for_round` reveals only
+  `revealed_octaves` (clamped to `[1, octaves()]`) of the configured fBm octaves,
+  letting a caller fold elevation into a subdivision round-by-round instead of as one
+  whole-mesh pass — `apply_terrain_noise(mesh, seed, tn)` is defined as
+  `apply_terrain_noise_for_round(mesh, seed, tn, tn.octaves())`, so its own contract is
+  unchanged);
   plus the per-vertex `VertexOperator` building blocks `subdivision/strategies/`
   composes into a pipeline to compute each newly split vertex (`vertex_operator.rs`
   (`VertexOperator`, `pub(crate)`), `jitter.rs` (`jitter`, `pub(crate)` — displaces
@@ -84,9 +98,13 @@ by an automated test.
   `GenerationProgress`, `PostprocessProgress`), `planet_builder.rs` (`PlanetBuilder`
   — creation only, no subdivision; scrambles the icosahedron's base vertices via
   `processor/vertex_scramble.rs`'s `scramble_vertices` before storing the mesh),
-  `postprocess_stage.rs` (`PostprocessStage` — the two coarse, observable stages
-  `Planet::subdivide`'s postprocessing pass reports via `PostprocessProgress`:
-  `TerrainNoise` always, `OceanQuota` only when the preset configures one)
+  `postprocess_stage.rs` (`PostprocessStage` — one remaining variant, `OceanQuota`,
+  the sole coarse, observable stage left after subdivision completes, reported via
+  `PostprocessProgress` only when the preset configures an `OceanQuota` — never
+  called otherwise. Terrain noise is no longer a discrete post-subdivision "stage":
+  it is folded into every subdivision round via `subdivide.rs`'s `update_cb`,
+  already covered by the round-by-round `GenerationProgress` callback that fires
+  regardless)
 
 `planet-renderer`'s concerns:
 - `scene/` — `camera.rs` (`Camera`): orbit/zoom input math; `growth_animation.rs`

@@ -77,3 +77,8 @@ Feature: Recursive subdivision via the SubdivisionMode facade
     Given an icosahedron mesh
     When the mesh is subdivided with 0 steps using SubdivisionMode::UniformRedSplit with seed 7 and a recording update callback
     Then the update callback was invoked 0 times
+
+  Scenario: An update callback that returns a modified mesh causes the next round to subdivide that modified mesh
+    Given an icosahedron mesh
+    When the mesh is subdivided with 2 steps using SubdivisionMode::UniformRedSplit with seed 7 and an update callback that doubles every vertex's radius after round 1
+    Then every vertex of the resulting Mesh has exactly double the radius that an unmodified 2-step subdivision with seed 7 would have produced at the corresponding vertex

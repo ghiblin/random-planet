@@ -64,3 +64,35 @@ Feature: Shaping a mesh's elevation from a continuous noise field
     And a TerrainNoise with amplitude 0.0
     When terrain noise is applied to that mesh with seed 7 and that TerrainNoise
     Then every face in the resulting Mesh has all 3 angles between 8 and 155 degrees
+
+  Scenario: Applying terrain noise for round 1 uses just the first octave
+    Given an icosahedron mesh
+    And a TerrainNoise with amplitude 0.2 and 4 octaves
+    When terrain noise for round 1 is applied to that mesh with seed 7 and that TerrainNoise
+    Then the resulting Mesh is identical to applying terrain noise for round 1 with a TerrainNoise with amplitude 0.2 and 1 octave
+
+  Scenario: Applying terrain noise for a round at or beyond the configured octave count matches the whole-mesh function
+    Given an icosahedron mesh
+    And a TerrainNoise with amplitude 0.2 and 4 octaves
+    When terrain noise for round 4 is applied to that mesh with seed 7 and that TerrainNoise
+    Then the resulting Mesh is identical to applying terrain noise to that mesh with seed 7 and that TerrainNoise
+
+  Scenario: Applying terrain noise for round 0 behaves like round 1
+    Given an icosahedron mesh
+    And a TerrainNoise with amplitude 0.2 and 4 octaves
+    When terrain noise for round 0 is applied to that mesh with seed 7 and that TerrainNoise
+    Then the resulting Mesh is identical to applying terrain noise for round 1 with that same TerrainNoise
+
+  Scenario: Applying terrain noise for a round never displaces a vertex beyond amplitude bounds, regardless of revealed octaves
+    Given an icosahedron mesh
+    And a TerrainNoise with amplitude 0.2 and 4 octaves
+    When terrain noise for round 2 is applied to that mesh with seed 7 and that TerrainNoise
+    Then every vertex of the resulting Mesh has a radius less than or equal to 1.2
+    And every vertex of the resulting Mesh has a radius greater than or equal to 0.8
+
+  Scenario: Applying terrain noise for a round is deterministic for a given seed
+    Given an icosahedron mesh
+    And a TerrainNoise with amplitude 0.2 and 4 octaves
+    When terrain noise for round 2 is applied to that mesh with seed 7 and that TerrainNoise, producing the first Mesh
+    And terrain noise for round 2 is applied to the same icosahedron mesh with seed 7 and that TerrainNoise, producing the second Mesh
+    Then the first Mesh and the second Mesh are identical
