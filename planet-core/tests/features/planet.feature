@@ -96,12 +96,24 @@ Feature: Planet aggregate generation
     When another Planet is generated with seed 5 and the Volcano preset at max depth 3
     Then both resulting Planets' meshes have exactly 1280 faces
 
-  Scenario: Subdividing a Planet with an ocean-quota preset reports both postprocessing stages in order
+  Scenario: Subdividing a Planet with an ocean-quota preset reports the ocean-quota stage
     Given a Planet generated with seed 5 and the Earthy preset at max depth 2
     When that Planet is subdivided again with a postprocessing-stage observer
-    Then the observer received [TerrainNoise, OceanQuota] in that order
+    Then the observer received [OceanQuota] only
 
-  Scenario: Subdividing a Planet with a preset that has no ocean quota reports only the terrain-noise stage
+  Scenario: Subdividing a Planet with a preset that has no ocean quota reports no postprocessing stage
     Given a Planet generated with seed 5 and the Rocky preset at max depth 2
     When that Planet is subdivided again with a postprocessing-stage observer
-    Then the observer received [TerrainNoise] only
+    Then the observer received no postprocessing stages
+
+  Scenario: Each subdivision round's reported mesh already carries elevation, not just the final round
+    Given a recording progress callback
+    When a Planet is generated with seed 9 and the Earthy preset at max depth 3 using that callback
+    Then the progress callback's 1st invocation received round 0 with the base icosahedron mesh
+    And the progress callback's 2nd invocation received a Mesh where at least one shared vertex's radius differs from that vertex's radius in the 1st invocation's Mesh
+    And the progress callback's 3rd invocation received a Mesh where at least one shared vertex's radius differs from that vertex's radius in the 2nd invocation's Mesh
+
+  Scenario: A Planet's final mesh is unaffected by whether a progress callback was supplied
+    Given a Planet generated with seed 9 and the Earthy preset at max depth 4
+    When another Planet is generated with seed 9 and the Earthy preset at max depth 4 using a recording progress callback
+    Then the two Planets have identical meshes

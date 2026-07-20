@@ -417,6 +417,53 @@ fn then_callback_invocation_faces(world: &mut PlanetWorld, index: usize, count: 
     assert_eq!(mesh.faces().len(), count);
 }
 
+#[when(
+    regex = r"^another Planet is generated with seed (\d+) and the (Earthy|Volcano|Rocky) preset at max depth (\d+) using a recording progress callback$"
+)]
+fn when_second_generated_with_recording_callback(
+    world: &mut PlanetWorld,
+    seed: u64,
+    preset_name: String,
+    max_depth: usize,
+) {
+    let invocations: Invocations = Rc::new(RefCell::new(Vec::new()));
+    let recorder = invocations.clone();
+    let on_progress: GenerationProgress = Box::new(move |mesh, round| {
+        recorder.borrow_mut().push((mesh.clone(), round));
+    });
+    world.second_planet = Some(
+        create(seed, &preset_name)
+            .subdivide(
+                Steps::new(max_depth).expect("Steps::new failed"),
+                Some(on_progress),
+                None,
+            )
+            .expect("Planet::subdivide failed"),
+    );
+}
+
+#[then(
+    regex = r"^the progress callback's (\d+)(?:st|nd|rd|th) invocation received a Mesh where at least one shared vertex's radius differs from that vertex's radius in the (\d+)(?:st|nd|rd|th) invocation's Mesh$"
+)]
+fn then_invocation_radius_differs_from_other_invocation(
+    world: &mut PlanetWorld,
+    index: usize,
+    other_index: usize,
+) {
+    let invocations = world.invocations();
+    let (mesh, _) = &invocations[index - 1];
+    let (other_mesh, _) = &invocations[other_index - 1];
+    let shared_len = mesh.vertices().len().min(other_mesh.vertices().len());
+    let found = (0..shared_len).any(|i| {
+        (mesh.vertices()[i].position.length() - other_mesh.vertices()[i].position.length()).abs()
+            > 1e-4
+    });
+    assert!(
+        found,
+        "no shared vertex radius differs between invocation {index} and invocation {other_index}"
+    );
+}
+
 #[given("a Planet built with no fields set")]
 fn given_planet_built_with_no_fields_set(world: &mut PlanetWorld) {
     world.first_planet = Some(
@@ -571,7 +618,6 @@ fn then_observer_received(world: &mut PlanetWorld, stages_csv: String) {
     let expected: Vec<PostprocessStage> = stages_csv
         .split(',')
         .map(|name| match name.trim() {
-            "TerrainNoise" => PostprocessStage::TerrainNoise,
             "OceanQuota" => PostprocessStage::OceanQuota,
             other => panic!("unknown PostprocessStage: {other}"),
         })
@@ -582,6 +628,19 @@ fn then_observer_received(world: &mut PlanetWorld, stages_csv: String) {
         .expect("no postprocess-stage observer given")
         .borrow();
     assert_eq!(*actual, expected);
+}
+
+#[then("the observer received no postprocessing stages")]
+fn then_observer_received_none(world: &mut PlanetWorld) {
+    let actual = world
+        .postprocess_invocations
+        .as_ref()
+        .expect("no postprocess-stage observer given")
+        .borrow();
+    assert!(
+        actual.is_empty(),
+        "expected no postprocessing stages, got {actual:?}"
+    );
 }
 
 #[tokio::main]

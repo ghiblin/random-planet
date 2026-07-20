@@ -52,7 +52,7 @@ pub fn subdivide(mesh: &Mesh, mut args: SubdivisionArgs) -> Result<Mesh, MeshErr
     for step in 1..=args.steps.value() {
         current = split_round(&current, strategy.as_mut())?;
         if let Some(update_cb) = args.update_cb.as_mut() {
-            update_cb(&current, step);
+            current = update_cb(current, step)?;
         }
     }
     Ok(current)

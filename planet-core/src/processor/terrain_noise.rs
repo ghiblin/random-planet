@@ -121,14 +121,15 @@ impl TerrainNoise {
     }
 }
 
-pub fn apply_terrain_noise(
+fn sample_and_apply(
     mesh: &Mesh,
     seed: Seed,
     terrain_noise: TerrainNoise,
+    octaves: u32,
 ) -> Result<Mesh, MeshError> {
     let noise = Fbm::<Perlin>::new(seed.value() as u32)
         .set_frequency(terrain_noise.frequency() as f64)
-        .set_octaves(terrain_noise.octaves() as usize)
+        .set_octaves(octaves as usize)
         .set_persistence(terrain_noise.persistence() as f64)
         .set_lacunarity(terrain_noise.lacunarity() as f64);
 
@@ -159,4 +160,28 @@ pub fn apply_terrain_noise(
         .collect();
 
     Ok(mesh.with_repositioned(positions))
+}
+
+pub fn apply_terrain_noise(
+    mesh: &Mesh,
+    seed: Seed,
+    terrain_noise: TerrainNoise,
+) -> Result<Mesh, MeshError> {
+    sample_and_apply(mesh, seed, terrain_noise, terrain_noise.octaves())
+}
+
+/// Same per-vertex math as `apply_terrain_noise`, but reveals only `revealed_octaves`
+/// of `terrain_noise`'s configured fBm octaves — clamped to `[1, terrain_noise.octaves()]`,
+/// so `0` behaves like `1` and any value at or beyond the configured count behaves like
+/// the full `apply_terrain_noise` call. Lets a caller (`Planet::subdivide`) fold terrain
+/// elevation into the subdivision loop itself, one additional octave per round, instead
+/// of as a single whole-mesh pass after subdivision completes.
+pub fn apply_terrain_noise_for_round(
+    mesh: &Mesh,
+    seed: Seed,
+    terrain_noise: TerrainNoise,
+    revealed_octaves: u32,
+) -> Result<Mesh, MeshError> {
+    let octaves = revealed_octaves.clamp(1, terrain_noise.octaves());
+    sample_and_apply(mesh, seed, terrain_noise, octaves)
 }

@@ -1,9 +1,9 @@
 use super::seed::Seed;
 use super::steps::Steps;
 use super::subdivision_mode::SubdivisionMode;
-use crate::geometry::mesh::Mesh;
+use crate::geometry::mesh::{Mesh, MeshError};
 
-pub type UpdateCallback = Box<dyn FnMut(&Mesh, usize)>;
+pub type UpdateCallback = Box<dyn FnMut(Mesh, usize) -> Result<Mesh, MeshError>>;
 
 pub struct SubdivisionArgs {
     pub(crate) steps: Steps,

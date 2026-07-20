@@ -114,7 +114,6 @@ mod wasm {
                 WorkerMessage::PostprocessStage(stage) => {
                     let _ = Reflect::set(&object, &"type".into(), &"postprocessStage".into());
                     let stage_name = match stage {
-                        PostprocessStage::TerrainNoise => "TerrainNoise",
                         PostprocessStage::OceanQuota => "OceanQuota",
                     };
                     let _ = Reflect::set(&object, &"stage".into(), &stage_name.into());
@@ -138,7 +137,6 @@ mod wasm {
                 "postprocessStage" => {
                     let stage_name = Reflect::get(value, &"stage".into()).ok()?.as_string()?;
                     let stage = match stage_name.as_str() {
-                        "TerrainNoise" => PostprocessStage::TerrainNoise,
                         "OceanQuota" => PostprocessStage::OceanQuota,
                         _ => return None,
                     };

@@ -130,6 +130,7 @@ fn when_subdivided_with_callback(world: &mut SubdivideWorld, steps: usize, seed:
     let recorder = invocations.clone();
     let update_cb: UpdateCallback = Box::new(move |mesh, round| {
         recorder.borrow_mut().push((mesh.clone(), round));
+        Ok(mesh)
     });
     world.callback_invocations = Some(invocations);
     let args = SubdivisionArgs::new(
@@ -256,6 +257,65 @@ fn then_first_and_second_not_identical(world: &mut SubdivideWorld) {
 #[then(regex = r"^the update callback was invoked (\d+) times$")]
 fn then_callback_invocation_count(world: &mut SubdivideWorld, count: usize) {
     assert_eq!(world.invocations().len(), count);
+}
+
+fn triangle_indices(mesh: &Mesh) -> Vec<(usize, usize, usize)> {
+    mesh.faces()
+        .iter()
+        .map(|face| {
+            let corners: Vec<usize> = face
+                .edges
+                .iter()
+                .map(|&edge_index| mesh.edges()[edge_index].start)
+                .collect();
+            (corners[0], corners[1], corners[2])
+        })
+        .collect()
+}
+
+#[when(
+    regex = r"^the mesh is subdivided with (\d+) steps? using SubdivisionMode::UniformRedSplit with seed (\d+) and an update callback that doubles every vertex's radius after round 1$"
+)]
+fn when_subdivided_with_doubling_callback(world: &mut SubdivideWorld, steps: usize, seed: u64) {
+    let source = world.source_mesh();
+    let update_cb: UpdateCallback = Box::new(move |mesh, round| {
+        if round != 1 {
+            return Ok(mesh);
+        }
+        let triangles = triangle_indices(&mesh);
+        let doubled = mesh
+            .vertices()
+            .iter()
+            .map(|vertex| vertex.position.scale(2.0))
+            .collect();
+        Mesh::new(doubled, triangles)
+    });
+    let args = SubdivisionArgs::new(
+        Some(Steps::new(steps).expect("Steps::new failed")),
+        Some(SubdivisionMode::UniformRedSplit),
+        Some(Seed::from(seed)),
+        Some(update_cb),
+    );
+    world.result = Some(subdivide(&source, args).expect("subdivide() failed"));
+}
+
+#[then(
+    regex = r"^every vertex of the resulting Mesh has exactly double the radius that an unmodified (\d+)-step subdivision with seed (\d+) would have produced at the corresponding vertex$"
+)]
+fn then_radius_is_double_unmodified(world: &mut SubdivideWorld, steps: usize, seed: u64) {
+    let source = world.source_mesh();
+    let baseline = subdivided(&source, steps, seed);
+    let result = world.result();
+    assert_eq!(result.vertices().len(), baseline.vertices().len());
+    for (actual, expected) in result.vertices().iter().zip(baseline.vertices()) {
+        let actual_radius = actual.position.length();
+        let expected_radius = expected.position.length() * 2.0;
+        assert!(
+            (actual_radius - expected_radius).abs() <= 1e-4,
+            "radius {actual_radius} is not double the unmodified radius {}",
+            expected.position.length()
+        );
+    }
 }
 
 #[then(
